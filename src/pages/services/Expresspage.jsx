@@ -131,7 +131,7 @@ export default function ExpressPage() {
     const sur = subtotal * fuel + security;
     const total = Math.max(9, subtotal + sur);
     return {
-      currency: "USD",
+      currency: "EUR",
       total: round2(total),
       eta: parcelLevel === "standard" ? "2–5 business days" : parcelLevel === "express" ? "24–72 hours" : "12–48 hours",
       billable: billableParcel,

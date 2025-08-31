@@ -8,7 +8,7 @@ export default function FAQPage() {
   const faqs = [
     {
       q: "How do I ship a package?",
-      a: "Go to Services → Express, pick parcel type, enter from/to, weight and dimensions, then generate a label. In this demo, no payment is processed.",
+      a: "Go to Services → Express, pick parcel type, enter from/to, weight and dimensions, then generate a label.",
     },
     {
       q: "How long does delivery take?",
@@ -20,7 +20,7 @@ export default function FAQPage() {
     },
     {
       q: "What if my shipment is stuck at customs?",
-      a: "You’ll see an Exception status with an action (e.g., upload invoice). Since this is a demo, the button simply shows a toast.",
+      a: "You’ll see an Exception status with an action (e.g., upload invoice). ",
     },
     {
       q: "Do you offer pickups?",

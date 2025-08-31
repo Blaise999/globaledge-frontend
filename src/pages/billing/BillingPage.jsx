@@ -249,7 +249,6 @@ export default function BillingPage() {
                 <h2 className="text-lg font-semibold text-gray-900">Payment method</h2>
                 {IS_DEV && (
                   <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700">
-                    TEST MODE: validation bypass
                   </span>
                 )}
               </div>

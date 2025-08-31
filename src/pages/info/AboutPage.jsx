@@ -72,8 +72,7 @@ export default function AboutPage() {
             <Item k="HQ" v="Brussels, Belgium" />
             <Item k="Support hours" v="Mon–Fri, 9:00–18:00 WAT" />
             <Item k="Email" v="support@globaledge.example" />
-            <Item k="Phone" v="+234 000 000 0000" />
-            <Item k="Status" v="Demo / Non-production" />
+            <Item k="Phone" v="+44 000 000 0000" />
           </dl>
         </div>
       </main>

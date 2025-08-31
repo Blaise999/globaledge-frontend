@@ -51,7 +51,7 @@ export default function ContactPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-12">
           <h1 className="text-3xl sm:text-4xl font-black">Contact us</h1>
           <p className="mt-2 text-white/95 max-w-2xl">
-            We’ll reply quickly during support hours. This is a demo; no emails are sent.
+            We’ll reply quickly during support hours. 
           </p>
         </div>
       </section>
@@ -109,7 +109,7 @@ export default function ContactPage() {
         <div className="rounded-2xl border bg-white p-6 space-y-4">
           <h3 className="font-semibold">Quick contacts</h3>
           <Line k="Email" v="support@globaledge.example" />
-          <Line k="Phone" v="+234 000 000 0000" />
+          <Line k="Phone" v="+44 000 000 0000" />
           <Line k="Hours" v="Mon–Fri, 9:00–18:00" />
           <Line k="HQ" v="12 Marina Rd, Brussels, Belgium" />
           <p className="text-xs text-gray-500">

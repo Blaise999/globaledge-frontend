@@ -802,7 +802,7 @@ function maskEmail(e = "") {
   return `${mask(local)}@${maskedHost}.${tldParts.join(".") || ""}`.replace(/\.\./g, ".");
 }
 
-/* ---------- NEW: phone mask (e.g., +234******45) ---------- */
+/* ---------- NEW: phone mask (e.g., +44******45) ---------- */
 function maskPhone(p = "") {
   const d = String(p).replace(/\D/g, "");
   if (!d) return p;
