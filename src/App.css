@@ -1,0 +1,66 @@
+#root {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 2rem;
+  text-align: center;
+}
+
+.logo {
+  height: 6em;
+  padding: 1.5em;
+  will-change: filter;
+  transition: filter 300ms;
+}
+.logo:hover {
+  filter: drop-shadow(0 0 2em #646cffaa);
+}
+.logo.react:hover {
+  filter: drop-shadow(0 0 2em #61dafbaa);
+}
+
+@keyframes logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  a:nth-of-type(2) .logo {
+    animation: logo-spin infinite 20s linear;
+  }
+}
+
+.card {
+  padding: 2em;
+}
+
+.read-the-docs {
+  color: #888;
+}
+/* ==== Design tokens (utility classes) ==== */
+.card { @apply rounded-2xl border bg-white shadow-sm transition hover:shadow-md; }
+.card-muted { @apply rounded-2xl border bg-gray-50; }
+.pill-tab { @apply px-3 py-2 rounded-xl text-sm font-medium transition; }
+.pill-tab--active { @apply bg-red-600 text-white shadow-sm; }
+.pill-tab--idle { @apply hover:bg-gray-50 text-gray-700; }
+
+.btn { @apply inline-flex items-center gap-2 rounded-xl text-sm font-semibold transition active:scale-[0.98]; }
+.btn-primary { @apply btn px-3 py-2 bg-red-600 text-white hover:bg-red-700; }
+.btn-secondary { @apply btn px-3 py-2 bg-white border hover:bg-gray-50; }
+.btn-ghost { @apply btn px-2 py-1.5 text-gray-700 hover:bg-gray-50; }
+
+.kpi { @apply card p-5 relative overflow-hidden; }
+.kpi::after{ content:""; @apply absolute inset-0 pointer-events-none; background: radial-gradient(120px 60px at 85% -10%, rgba(220,38,38,.08), transparent); }
+
+.table-wrap { @apply mt-4 overflow-x-auto rounded-2xl border; }
+.table { @apply min-w-full text-sm; }
+.table thead { @apply sticky top-0 bg-white/95 backdrop-blur z-10; }
+.table thead th { @apply text-left px-4 py-3 font-semibold text-gray-700; }
+.table tbody tr { @apply even:bg-gray-50; }
+.table tbody td { @apply px-4 py-3 align-top; }
+.table tbody tr:hover { @apply bg-red-50/40; }
+
+.badge { @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ring-1 ring-inset; }
