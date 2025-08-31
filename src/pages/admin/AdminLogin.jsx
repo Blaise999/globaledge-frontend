@@ -1,17 +1,10 @@
 // src/pages/admin/AdminLogin.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { adminAuth, setAdminToken } from "../../utils/api";
 
-// ---------- API base ----------
-// In PRODUCTION we ALWAYS go through the Vercel proxy at "/api".
-// In DEV you can override with VITE_API_BASE or window.__API_BASE__.
-const API_BASE = import.meta.env.PROD
-  ? "/api"
-  : (
-      import.meta.env?.VITE_API_BASE ||
-      (typeof window !== "undefined" && window.__API_BASE__) ||
-      "http://127.0.0.1:4000/api"
-    );
+
+const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:4000/api";
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -24,32 +17,25 @@ export default function AdminLogin() {
     e.preventDefault();
     setErr("");
     setLoading(true);
-
     try {
       const res = await fetch(`${API_BASE}/admin/auth/login`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
-        // if your backend sets cookies, also include:
-        // credentials: "include",
       });
 
-      // Try to parse JSON safely
-      const text = await res.text();
-      const data = text ? JSON.parse(text) : null;
+      const data = await res.json();
 
       if (!res.ok) {
-        const msg = (data && (data.error || data.message)) || res.statusText || "Login failed";
-        throw new Error(msg);
+        throw new Error(data?.message || "Login failed");
       }
 
       // Expecting { message, token, admin: { ... } }
-      if (data?.token) localStorage.setItem("adminToken", data.token);
-      if (data?.admin) localStorage.setItem("adminProfile", JSON.stringify(data.admin));
-
+      localStorage.setItem("adminToken", data.token);
+      localStorage.setItem("adminProfile", JSON.stringify(data.admin));
       navigate("/admin/dashboard", { replace: true });
     } catch (e) {
-      setErr(e.message || "Login failed");
+      setErr(e.message);
     } finally {
       setLoading(false);
     }
@@ -126,9 +112,8 @@ export default function AdminLogin() {
         </form>
 
         <p className="mt-4 text-xs text-gray-500">
-          <strong>API base:</strong> In production this app uses <code className="px-1 rounded bg-gray-100">/api</code> (proxied by Vercel to your
-          Render backend). In development you can set <code className="px-1 rounded bg-gray-100">VITE_API_BASE</code> or a
-          dev-only <code className="px-1 rounded bg-gray-100">window.__API_BASE__</code>.
+          Tip: Set <code className="px-1 rounded bg-gray-100">VITE_API_BASE</code> in your <code>.env</code> if your API isn’t on the default
+          <code className="px-1 rounded bg-gray-100"> http://127.0.0.1:4000/api</code>.
         </p>
       </div>
     </div>
