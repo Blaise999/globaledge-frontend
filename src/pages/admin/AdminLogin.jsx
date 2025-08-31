@@ -1,10 +1,7 @@
 // src/pages/admin/AdminLogin.jsx
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { adminAuth, setAdminToken } from "../../utils/api";
-
-
-const API_BASE = import.meta.env.VITE_API_BASE || "http://127.0.0.1:4000/api";
+import { adminAuth, setAdminToken } from "../../utils/api"; // <-- use shared helpers
 
 export default function AdminLogin() {
   const navigate = useNavigate();
@@ -17,25 +14,28 @@ export default function AdminLogin() {
     e.preventDefault();
     setErr("");
     setLoading(true);
+
     try {
-      const res = await fetch(`${API_BASE}/admin/auth/login`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(form),
+      // Calls POST /api/admin/auth/login using the centralized base URL logic
+      const data = await adminAuth.login({
+        email: form.email,
+        password: form.password,
       });
 
-      const data = await res.json();
+      // Expecting { message, token, admin }
+      if (!data?.token) throw new Error("Missing token in response");
 
-      if (!res.ok) {
-        throw new Error(data?.message || "Login failed");
+      // Save token the same way all admin APIs read it (ge_admin_token)
+      setAdminToken(data.token);
+
+      // Optional profile cache
+      if (data?.admin) {
+        localStorage.setItem("adminProfile", JSON.stringify(data.admin));
       }
 
-      // Expecting { message, token, admin: { ... } }
-      localStorage.setItem("adminToken", data.token);
-      localStorage.setItem("adminProfile", JSON.stringify(data.admin));
       navigate("/admin/dashboard", { replace: true });
     } catch (e) {
-      setErr(e.message);
+      setErr(e?.message || "Login failed");
     } finally {
       setLoading(false);
     }
@@ -86,7 +86,7 @@ export default function AdminLogin() {
                   </svg>
                 ) : (
                   <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-                    <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-6 0-10-7-10-7a20.29 20.29 0 0 1 5.06-5.94m3.12-1.39A10.94 10.94 0 0 1 12 5c6 0 10 7 10 7a20.29 20.29 0 0 1-3.1 4.11" />
+                    <path d="M17.94 17.94A10.94 10.94 0 0 1 12 19c-6 0  -10-7-10-7a20.29 20.29 0 0 1 5.06-5.94m3.12-1.39A10.94 10.94 0 0 1 12 5c6 0 10 7 10 7a20.29 20.29 0 0 1-3.1 4.11" />
                     <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 )}
@@ -112,8 +112,9 @@ export default function AdminLogin() {
         </form>
 
         <p className="mt-4 text-xs text-gray-500">
-          Tip: Set <code className="px-1 rounded bg-gray-100">VITE_API_BASE</code> in your <code>.env</code> if your API isn’t on the default
-          <code className="px-1 rounded bg-gray-100"> http://127.0.0.1:4000/api</code>.
+          In production this app uses <code className="px-1 rounded bg-gray-100">/api</code> (Vercel → Render).
+          In development you can set <code className="px-1 rounded bg-gray-100">VITE_API_BASE</code> or a dev-only{" "}
+          <code className="px-1 rounded bg-gray-100">window.__API_BASE__</code>.
         </p>
       </div>
     </div>
