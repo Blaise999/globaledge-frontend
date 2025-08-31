@@ -6,7 +6,7 @@ const API_BASE =
     import.meta.env &&
     import.meta.env.VITE_API_BASE) ||
   (typeof window !== "undefined" && window.__API_BASE__) ||
-  "http://127.0.0.1:4000/api";
+  "/api"; // <- was "http://127.0.0.1:4000/api"
 
 // ---------- Token storage (simple localStorage helpers) ----------
 const USER_TOKEN_KEY = "ge_user_token";
