@@ -503,7 +503,7 @@ export default function App() {
               },
               {
                 quote: "The tracking page is clean and accurate. Our support tickets dropped by half.",
-                name: "Emeka O.",
+                name: "Derrick M.",
                 role: "Founder, KudiMart",
               },
             ].map((t) => (
