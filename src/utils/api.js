@@ -7,15 +7,9 @@ const API_BASE =
     import.meta.env.VITE_API_BASE) ||
   (typeof window !== "undefined" && window.__API_BASE__) ||
   "/api"; // <- was "http://127.0.0.1:4000/api"
-
-  // ➕ add this:
-function resolveUrl(path) {
-  if (path.startsWith("http")) return path;
-  if (API_BASE.endsWith("/") && path.startsWith("/")) return API_BASE + path.slice(1);
-  return API_BASE + path;
-}
-export function getApiBase() { return API_BASE; }
-if (typeof window !== "undefined") window.__GE_API_BASE__ = API_BASE; // console debug helper
+export function getApiBase() { return API_BASE; }             // <-- add
+if (typeof window !== "undefined") window.__GE_API_BASE__ = API_BASE; // <-- add
+  
 // ---------- Token storage (simple localStorage helpers) ----------
 const USER_TOKEN_KEY = "ge_user_token";
 const ADMIN_TOKEN_KEY = "ge_admin_token";
@@ -68,59 +62,46 @@ function authHeader(token) {
 
 async function request(
   path,
-  { method = "GET", body, headers = {}, token, signal, timeoutMs = 15000, retries = 1 } = {}
+  { method = "GET", body, headers = {}, token, signal } = {}
 ) {
-  const url = resolveUrl(path);
+  const res = await fetch(`${API_BASE}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...authHeader(token),
+      ...headers,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+    signal,
+  });
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
-  const finalSignal = signal || controller.signal;
-
-  const doFetch = async () => {
-    const res = await fetch(url, {
-      method,
-      headers: {
-        "Content-Type": "application/json",
-        ...authHeader(token),
-        ...headers,
-      },
-      body: body ? JSON.stringify(body) : undefined,
-      signal: finalSignal,
-      redirect: "follow",
-    });
-
-    const text = await res.text().catch(() => "");
-    let data;
-    try { data = text ? JSON.parse(text) : null; } catch { data = { message: text || "" }; }
-
-    if (!res.ok) {
-      const msg = (data && (data.error || data.message)) || res.statusText || "Request failed";
-      const err = new Error(msg);
-      err.status = res.status;
-      err.data = data;
-      throw err;
-    }
-    return data;
-  };
-
+  const text = await res.text();
+  let data;
   try {
-    return await doFetch();
-  } catch (e) {
-    const transient =
-      e?.name === "AbortError" ||
-      e?.message?.includes("Failed to fetch") ||
-      [502, 503, 504].includes(e?.status);
-    if (retries > 0 && transient) {
-      await new Promise((r) => setTimeout(r, 700));
-      return await request(path, { method, body, headers, token, signal, timeoutMs, retries: retries - 1 });
-    }
-    if (!e.status) e.friendly = "Network/CORS/timeout — check API base & HTTPS.";
-    throw e;
-  } finally {
-    clearTimeout(timer);
+    data = text ? JSON.parse(text) : null;
+  } catch {
+    data = { message: text || "" };
   }
+
+  if (!res.ok) {
+    const msg =
+      (data && (data.error || data.message)) || res.statusText || "Request failed";
+    const err = new Error(msg);
+    err.status = res.status;
+    err.data = data;
+    throw err;
+  }
+  return data;
 }
 
+function withQuery(path, params = {}) {
+  const qs = new URLSearchParams();
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== undefined && v !== null && v !== "") qs.set(k, String(v));
+  });
+  const s = qs.toString();
+  return s ? `${path}?${s}` : path;
+}
 
 // ---------- Public / User Auth ----------
 export const auth = {
