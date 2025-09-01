@@ -8,7 +8,6 @@ export default function AdminDashboard() {
   const navigate = useNavigate();
   const [ready, setReady] = useState(false);
   const [authErr, setAuthErr] = useState("");
-}
 
   useEffect(() => {
     const t = getAdminToken();
@@ -39,6 +38,7 @@ export default function AdminDashboard() {
         </div>
       </div>
     );
+  }
   }
 // --- mapper: API Shipment -> Admin row shape the table expects
 function mapDocToRow(s) {
