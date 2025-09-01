@@ -41,11 +41,20 @@ export function getAdminToken() {
 }
 export function setAdminToken(token) {
   try {
-    token
-      ? localStorage.setItem(ADMIN_TOKEN_KEY, token)
-      : localStorage.removeItem(ADMIN_TOKEN_KEY);
-  } catch {}
+    if (token) {
+      localStorage.setItem(ADMIN_TOKEN_KEY, token);
+      // verify it actually persisted
+      const confirm = localStorage.getItem(ADMIN_TOKEN_KEY);
+      if (!confirm) throw new Error("LocalStorage write failed");
+    } else {
+      localStorage.removeItem(ADMIN_TOKEN_KEY);
+    }
+  } catch (e) {
+    console.error("[setAdminToken] persist failed:", e);
+    throw e; // bubble up so UI shows a clear error instead of “weirdness”
+  }
 }
+
 export function clearAdminToken() {
   setAdminToken(null);
 }

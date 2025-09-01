@@ -28,11 +28,21 @@ export default function AdminLogin() {
 
       if (!data?.token) throw new Error("Missing token in response");
 
+      // 1) persist
       setAdminToken(data.token);
       if (data?.admin) {
         localStorage.setItem("adminProfile", JSON.stringify(data.admin));
       }
 
+      // 2) let storage commit before route change (prevents intermittent “no token”)
+      await Promise.resolve();
+
+      // 3) verify it’s really there (defensive)
+      if (!localStorage.getItem("ge_admin_token")) {
+        throw new Error("Could not persist admin session (storage blocked or different host).");
+      }
+
+      // 4) go
       navigate("/admin/dashboard", { replace: true });
     } catch (e) {
       // Show a helpful message + diagnostics
