@@ -2,45 +2,16 @@
 import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "../../assets/globaledge.png";
-import { adminShipments as AdminAPI, adminUsers, adminEmail, adminMock } from "../../utils/api";
+import {
+  adminShipments as AdminAPI,
+  adminUsers,
+  adminEmail,
+  adminMock,
+  adminAuth,      // <-- make sure these exist in ../../utils/api
+  getAdminToken,  // <-- make sure these exist in ../../utils/api
+} from "../../utils/api";
 
-export default function AdminDashboard() {
-  const navigate = useNavigate();
-  const [ready, setReady] = useState(false);
-  const [authErr, setAuthErr] = useState("");
-
-  useEffect(() => {
-    const t = getAdminToken();
-    console.log("[AdminDashboard] token prefix:", (t||"").slice(0,20));
-    if (!t) {
-      setAuthErr("No admin token found (storage).");
-      navigate("/admin/login", { replace: true });
-      return;
-    }
-    adminAuth.me()
-      .then(() => {
-        console.log("[AdminDashboard] /admin/auth/me: 200");
-        setReady(true);
-      })
-      .catch((e) => {
-        console.error("[AdminDashboard] /admin/auth/me failed", e?.status, e);
-        setAuthErr(`Auth check failed: ${e?.status ?? "no-status"} ${e?.message ?? ""}`);
-        navigate("/admin/login", { replace: true });
-      });
-  }, [navigate]);
-
-  if (!ready) {
-    return (
-      <div className="min-h-screen grid place-items-center p-6">
-        <div className="text-center">
-          <div className="text-sm text-gray-500">Checking admin session…</div>
-          {authErr && <div className="mt-2 text-xs text-red-600">{authErr}</div>}
-        </div>
-      </div>
-    );
-  }
-  }
-// --- mapper: API Shipment -> Admin row shape the table expects
+/* ---------------- mapper: API Shipment -> Admin row shape ---------------- */
 function mapDocToRow(s) {
   const service = s.serviceType
     ? s.serviceType === "freight"
@@ -87,10 +58,50 @@ function mapDocToRow(s) {
 export default function AdminDashboard() {
   const navigate = useNavigate();
 
+  /* ---------------- optional auth gate ---------------- */
+  const [ready, setReady] = useState(true);
+  const [authErr, setAuthErr] = useState("");
+
+  useEffect(() => {
+    // Only run if helpers are present in utils/api
+    if (typeof getAdminToken !== "function" || !adminAuth?.me) return;
+
+    const t = getAdminToken();
+    if (!t) {
+      setReady(false);
+      setAuthErr("No admin token found (storage).");
+      navigate("/admin/login", { replace: true });
+      return;
+    }
+
+    adminAuth
+      .me()
+      .then(() => {
+        setReady(true);
+      })
+      .catch((e) => {
+        setReady(false);
+        setAuthErr(`Auth check failed: ${e?.status ?? "no-status"} ${e?.message ?? ""}`);
+        navigate("/admin/login", { replace: true });
+      });
+  }, [navigate]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen grid place-items-center p-6">
+        <div className="text-center">
+          <div className="text-sm text-gray-500">Checking admin session…</div>
+          {authErr && <div className="mt-2 text-xs text-red-600">{authErr}</div>}
+        </div>
+      </div>
+    );
+  }
+
+  /* ---------------- tabs ---------------- */
   const TABS = ["Shipments", "Users", "Emails", "Settings"];
   const [tab, setTab] = useState("Shipments");
 
-  // ===== live data =====
+  /* ---------------- live data ---------------- */
   const [shipments, setShipments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [loadErr, setLoadErr] = useState("");
@@ -109,7 +120,7 @@ export default function AdminDashboard() {
     smsEnabled: false,
   });
 
-  // ===== fetch shipments from API =====
+  /* ---------------- fetch shipments from API ---------------- */
   const loadShipments = useCallback(async () => {
     setLoading(true);
     setLoadErr("");
@@ -128,7 +139,7 @@ export default function AdminDashboard() {
     loadShipments();
   }, [loadShipments]);
 
-  // ===== fetch users from API =====
+  /* ---------------- fetch users from API ---------------- */
   function mapUser(u) {
     const hasFirst = !!u.firstName || !!u.lastName;
     const [first, ...rest] = String(u.name || "").trim().split(" ");
@@ -138,8 +149,8 @@ export default function AdminDashboard() {
       id: u._id || u.id,
       email: u.email || "",
       role: u.role || "user",
-      firstName: hasFirst ? (u.firstName || "") : fallbackFirst,
-      lastName: hasFirst ? (u.lastName || "") : fallbackLast,
+      firstName: hasFirst ? u.firstName || "" : fallbackFirst,
+      lastName: hasFirst ? u.lastName || "" : fallbackLast,
       company: u.company || "",
       phone: u.phone || "",
       address: u.address || "",
@@ -167,10 +178,11 @@ export default function AdminDashboard() {
     loadUsers();
   }, []);
 
-  // ===== Shipments filters =====
+  /* ---------------- Shipments filters ---------------- */
   const [q, setQ] = useState("");
   const [fService, setFService] = useState("all");
   const [fStatus, setFStatus] = useState("all");
+
   const filteredShipments = useMemo(() => {
     return shipments.filter((s) => {
       if (fService !== "all" && s.service !== fService) return false;
@@ -184,7 +196,7 @@ export default function AdminDashboard() {
     });
   }, [shipments, fService, fStatus, q]);
 
-  // ===== Modals & forms =====
+  /* ---------------- Modals & forms ---------------- */
   const [editShipOpen, setEditShipOpen] = useState(false);
   const [editShip, setEditShip] = useState(null);
 
@@ -201,7 +213,7 @@ export default function AdminDashboard() {
     body: "Hello,\n\nHere is an update regarding your shipment.\n\nRegards,\nGlobalEdge",
   });
 
-  // NEW — Inject Fake Data (per user)
+  // Inject Fake Data (per user)
   const [injectOpen, setInjectOpen] = useState(false);
   const [injectUser, setInjectUser] = useState(null);
   const [injectForm, setInjectForm] = useState({
@@ -213,7 +225,7 @@ export default function AdminDashboard() {
     notes: "",
   });
 
-  // NEW — Add Shipment (per user)
+  // Add Shipment (per user)
   const [newShipOpen, setNewShipOpen] = useState(false);
   const [newShip, setNewShip] = useState({
     userId: "",
@@ -230,7 +242,7 @@ export default function AdminDashboard() {
     eta: "",
   });
 
-  // ===== Actions: Shipments =====
+  /* ---------------- Actions: Shipments ---------------- */
   function openEditShipment(s) {
     setEditShip({ ...s });
     setEditShipOpen(true);
@@ -243,7 +255,7 @@ export default function AdminDashboard() {
       if (editShip.status) patch.status = editShip.status;
       const loc = [editShip.current?.city, editShip.current?.country].filter(Boolean).join(", ");
       if (loc) patch.lastLocation = loc;
-      if (editShip.eta) patch.eta = editShip.eta; // persist ETA
+      if (editShip.eta) patch.eta = editShip.eta;
 
       if (Object.keys(patch).length) {
         await AdminAPI.update(editShip.id, patch);
@@ -301,7 +313,7 @@ export default function AdminDashboard() {
     setShipments((arr) => arr.map((x) => (x.tracking === s.tracking ? copy : x)));
   }
 
-  // ===== Actions: Users =====
+  /* ---------------- Actions: Users ---------------- */
   function openEditUser(u) {
     setEditUser({ ...u });
     setEditUserOpen(true);
@@ -318,7 +330,6 @@ export default function AdminDashboard() {
           company: editUser.company,
           phone: editUser.phone,
           address: editUser.address,
-          // keep backend-editable aggregates:
           shipmentsCount: Number(editUser.shipmentsCount || 0),
           totalSpend: Number(editUser.totalSpend || 0),
         };
@@ -332,7 +343,7 @@ export default function AdminDashboard() {
     })();
   }
 
-  // NEW — Inject fake data (overlay) for a specific user
+  // Inject fake overlay data for a specific user
   function openInject(u) {
     setInjectUser(u);
     setInjectForm({
@@ -351,7 +362,6 @@ export default function AdminDashboard() {
       await adminMock.inject(injectUser.id, { ...injectForm });
       setInjectOpen(false);
       toast("Fake data injected");
-      // optionally refresh shipments/users
       await loadShipments();
       await loadUsers();
     } catch (err) {
@@ -359,7 +369,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // NEW — Add a real shipment to user's catalogue
+  // Add a real shipment to user's catalogue
   function openNewShipmentForUser(u) {
     setNewShip({
       userId: u.id,
@@ -384,14 +394,20 @@ export default function AdminDashboard() {
         userId: newShip.userId,
         trackingNumber: (newShip.tracking || "").trim(),
         serviceType: newShip.service.toLowerCase() === "freight" ? "freight" : "parcel",
-        parcel: newShip.service.toLowerCase() === "freight" ? undefined : {
-          level: newShip.service.toLowerCase(), // "standard", "express", ...
-          weight: Number(newShip.weight || 0),
-        },
-        freight: newShip.service.toLowerCase() !== "freight" ? undefined : {
-          pallets: Number(newShip.pieces || 1),
-          weight: Number(newShip.weight || 0),
-        },
+        parcel:
+          newShip.service.toLowerCase() === "freight"
+            ? undefined
+            : {
+                level: newShip.service.toLowerCase(), // "standard", "express", ...
+                weight: Number(newShip.weight || 0),
+              },
+        freight:
+          newShip.service.toLowerCase() !== "freight"
+            ? undefined
+            : {
+                pallets: Number(newShip.pieces || 1),
+                weight: Number(newShip.weight || 0),
+              },
         status: newShip.status,
         from: newShip.from,
         to: newShip.to,
@@ -408,7 +424,7 @@ export default function AdminDashboard() {
     }
   }
 
-  // ======== USERS: UserDetails JSON editor (Mongo-Compass-like) ========
+  /* ---------------- UserDetails JSON editor ---------------- */
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [detailsUser, setDetailsUser] = useState(null);
   const [detailsJSON, setDetailsJSON] = useState("{\n}");
@@ -419,8 +435,7 @@ export default function AdminDashboard() {
     setDetailsUser(u);
     setDetailsErr("");
     try {
-      // GET /api/admin/users/:id/details
-      const doc = await adminUsers.getDetails(u.id);
+      const doc = await adminUsers.getDetails(u.id); // GET /api/admin/users/:id/details
       setDetailsJSON(JSON.stringify(doc || {}, null, 2));
       setDetailsOpen(true);
     } catch (e) {
@@ -442,48 +457,16 @@ export default function AdminDashboard() {
     e.preventDefault();
     try {
       const body = JSON.parse(detailsJSON);
-      // PUT /api/admin/users/:id/details?recompute=0|1
-      await adminUsers.setDetails(detailsUser.id, body, { recompute: recomputeOnSave ? 1 : 0 });
+      await adminUsers.setDetails(detailsUser.id, body, { recompute: recomputeOnSave ? 1 : 0 }); // PUT /api/admin/users/:id/details
       setDetailsOpen(false);
       toast("UserDetails saved");
-      await loadUsers(); // refresh aggregates if exposed on users list
+      await loadUsers();
     } catch (e) {
       setDetailsErr(e?.data?.message || e?.message || "Failed to save details");
     }
   }
-  // ===================== end Users JSON editor additions =====================
 
-  // ===== Emails (demo) =====
-  function openEmailTo(s) {
-    setEmailForm({
-      to: s.recipientEmail || "",
-      subject: `Update on ${s.tracking}`,
-      body: `Hello ${s.toName || ""},\n\nWe have an update regarding your shipment ${s.tracking}.\n\nStatus: ${s.status}\nRoute: ${s.from} → ${s.to}\n\nRegards,\nGlobalEdge`,
-    });
-    setEmailOpen(true);
-  }
-  async function sendEmail(e) {
-    e.preventDefault();
-    try {
-      await adminEmail.send({
-        to: emailForm.to,
-        subject: emailForm.subject,
-        body: emailForm.body,
-      });
-      setEmailOpen(false);
-      toast("Email sent");
-    } catch (err) {
-      toast(err?.data?.message || err?.message || "Failed to send email");
-    }
-  }
-
-  // ===== Settings (demo) =====
-  function saveSettings(e) {
-    e.preventDefault();
-    toast("Settings saved (demo)");
-  }
-
-  // ===== UI =====
+  /* ---------------- UI ---------------- */
   return (
     <div className="min-h-screen bg-[radial-gradient(1200px_600px_at_120%_-10%,#fef2f2,transparent)]">
       {/* Header */}
@@ -495,7 +478,10 @@ export default function AdminDashboard() {
             </Link>
             <div className="flex items-center gap-2">
               <Tag color="red">Admin</Tag>
-              <button className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-medium hover:bg-gray-50" onClick={loadShipments}>
+              <button
+                className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-medium hover:bg-gray-50"
+                onClick={loadShipments}
+              >
                 Reload
               </button>
               <Link
@@ -504,7 +490,10 @@ export default function AdminDashboard() {
               >
                 Create Shipment
               </Link>
-              <Link to="/dashboard" className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-medium hover:bg-gray-50">
+              <Link
+                to="/dashboard"
+                className="px-3 py-1.5 rounded-xl border border-gray-200 text-sm font-medium hover:bg-gray-50"
+              >
                 Customer View
               </Link>
             </div>
@@ -520,7 +509,9 @@ export default function AdminDashboard() {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`px-3 py-2 rounded-lg text-sm font-medium ${tab === t ? "bg-red-600 text-white" : "hover:bg-gray-50"}`}
+                className={`px-3 py-2 rounded-lg text-sm font-medium ${
+                  tab === t ? "bg-red-600 text-white" : "hover:bg-gray-50"
+                }`}
               >
                 {t}
               </button>
@@ -702,17 +693,17 @@ export default function AdminDashboard() {
                             <EditIcon /> Edit
                           </button>
 
-                          {/* NEW: Details JSON editor for UserDetails */}
+                          {/* Details JSON editor for UserDetails */}
                           <button className="btn-ghost" onClick={() => openDetails(u)}>
                             <EditIcon /> Details
                           </button>
 
-                          {/* NEW: Inject fake overlay data for this user */}
+                          {/* Inject fake overlay data for this user */}
                           <button className="btn-ghost" onClick={() => openInject(u)}>
                             <PlusIcon /> Inject fake
                           </button>
 
-                          {/* NEW: Add a shipment linked to this user */}
+                          {/* Add a shipment linked to this user */}
                           <button className="btn-ghost" onClick={() => openNewShipmentForUser(u)}>
                             <PlusIcon /> Add shipment
                           </button>
@@ -773,7 +764,7 @@ export default function AdminDashboard() {
         {tab === "Settings" && (
           <section>
             <SectionHeader title="Operations Settings" />
-            <form className="grid md:grid-cols-2 gap-4" onSubmit={saveSettings}>
+            <form className="grid md:grid-cols-2 gap-4" onSubmit={(e) => { e.preventDefault(); toast("Settings saved (demo)"); }}>
               <Input
                 label="Default Incoterm"
                 value={settings.defaultIncoterm}
@@ -864,7 +855,7 @@ export default function AdminDashboard() {
               onChange={(e) => setEditShip({ ...editShip, cost: e.target.value })}
             />
 
-            {/* ETA editor (safe) */}
+            {/* ETA editor */}
             <Input
               label="ETA (estimated delivery)"
               type="datetime-local"
@@ -926,11 +917,7 @@ export default function AdminDashboard() {
                         {ev.location} • {new Date(ev.ts).toLocaleString()} {ev.code && `• ${ev.code}`}
                       </div>
                     </div>
-                    <button
-                      type="button"
-                      className="btn-ghost text-red-600"
-                      onClick={() => removeEvent(editShip, i)}
-                    >
+                    <button type="button" className="btn-ghost text-red-600" onClick={() => removeEvent(editShip, i)}>
                       <TrashIcon /> Remove
                     </button>
                   </li>
@@ -1027,7 +1014,7 @@ export default function AdminDashboard() {
               onChange={(e) => setEditUser({ ...editUser, role: e.target.value })}
               options={["user", "admin"].map((x) => ({ v: x, t: x }))}
             />
-            {/* These two satisfy: edit total user amount shipped/spend */}
+            {/* Aggregates */}
             <Input
               label="Shipments count"
               type="number"
@@ -1058,7 +1045,7 @@ export default function AdminDashboard() {
         </Modal>
       )}
 
-      {/* NEW: Details JSON editor modal for UserDetails */}
+      {/* Details JSON editor modal */}
       {detailsOpen && detailsUser && (
         <Modal title={`UserDetails — ${detailsUser.email}`} onClose={() => setDetailsOpen(false)}>
           <form className="grid gap-3" onSubmit={saveDetails}>
@@ -1066,7 +1053,8 @@ export default function AdminDashboard() {
               Full <code>UserDetails</code> JSON. Edit like Mongo Compass. Arrays/objects supported.
               <div className="mt-1">
                 <span className="font-semibold">Hints:</span> keys include
-                <code> shipments</code>,<code> addresses</code>,<code> paymentMethods</code>,<code> pickups</code>,<code> billing</code>,<code> adminOverlay</code>.
+                <code> shipments</code>,<code> addresses</code>,<code> paymentMethods</code>,<code> pickups</code>,
+                <code> billing</code>,<code> adminOverlay</code>.
               </div>
             </div>
 
@@ -1105,7 +1093,7 @@ export default function AdminDashboard() {
         </Modal>
       )}
 
-      {/* NEW: Inject Fake Data modal */}
+      {/* Inject Fake Data modal */}
       {injectOpen && injectUser && (
         <Modal title={`Inject fake data — ${injectUser.email}`} onClose={() => setInjectOpen(false)}>
           <form className="grid sm:grid-cols-3 gap-3" onSubmit={submitInject}>
@@ -1156,7 +1144,7 @@ export default function AdminDashboard() {
         </Modal>
       )}
 
-      {/* NEW: Add Shipment modal */}
+      {/* Add Shipment modal */}
       {newShipOpen && (
         <Modal title="Add shipment to user" onClose={() => setNewShipOpen(false)}>
           <form className="grid sm:grid-cols-2 gap-3" onSubmit={saveNewShipment}>
@@ -1187,14 +1175,17 @@ export default function AdminDashboard() {
               label="Status"
               value={newShip.status}
               onChange={(e) => setNewShip({ ...newShip, status: e.target.value })}
-              options={["Created", "Picked Up", "In Transit", "Out for Delivery", "Delivered", "Exception"].map((x) => ({
-                v: x,
-                t: x,
-              }))}
+              options={["Created", "Picked Up", "In Transit", "Out for Delivery", "Delivered", "Exception"].map(
+                (x) => ({ v: x, t: x })
+              )}
             />
             <Input label="From" value={newShip.from} onChange={(e) => setNewShip({ ...newShip, from: e.target.value })} />
             <Input label="To" value={newShip.to} onChange={(e) => setNewShip({ ...newShip, to: e.target.value })} />
-            <Input label="Recipient name" value={newShip.toName} onChange={(e) => setNewShip({ ...newShip, toName: e.target.value })} />
+            <Input
+              label="Recipient name"
+              value={newShip.toName}
+              onChange={(e) => setNewShip({ ...newShip, toName: e.target.value })}
+            />
             <Input
               label="Recipient email"
               type="email"
@@ -1239,7 +1230,7 @@ export default function AdminDashboard() {
 
       {emailOpen && (
         <Modal title="Send email (demo)" onClose={() => setEmailOpen(false)}>
-          <form className="grid gap-3" onSubmit={sendEmail}>
+          <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); sendEmail(e); }}>
             <Input label="From" value={settings.emailFrom} readOnly />
             <Input
               label="To"
