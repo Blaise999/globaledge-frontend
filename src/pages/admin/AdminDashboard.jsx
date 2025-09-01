@@ -3,24 +3,29 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "../../assets/globaledge.png";
 import { adminShipments as AdminAPI, adminUsers, adminEmail, adminMock } from "../../utils/api";
+
 export default function AdminDashboard() {
   const navigate = useNavigate();
-}
   const [ready, setReady] = useState(false);
   const [authErr, setAuthErr] = useState("");
+}
 
   useEffect(() => {
     const t = getAdminToken();
+    console.log("[AdminDashboard] token prefix:", (t||"").slice(0,20));
     if (!t) {
-      setAuthErr("No admin token found.");
+      setAuthErr("No admin token found (storage).");
       navigate("/admin/login", { replace: true });
       return;
     }
     adminAuth.me()
-      .then(() => setReady(true))
+      .then(() => {
+        console.log("[AdminDashboard] /admin/auth/me: 200");
+        setReady(true);
+      })
       .catch((e) => {
-        console.error("[AdminDashboard] /admin/auth/me failed", e);
-        setAuthErr(`${e?.status ?? "no-status"} ${e?.message ?? "Auth check failed"}`);
+        console.error("[AdminDashboard] /admin/auth/me failed", e?.status, e);
+        setAuthErr(`Auth check failed: ${e?.status ?? "no-status"} ${e?.message ?? ""}`);
         navigate("/admin/login", { replace: true });
       });
   }, [navigate]);
