@@ -35,9 +35,12 @@ import ContactPage from "./pages/info/ContactPage.jsx";
 import FAQPage from "./pages/info/FAQPage.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
+// ✅ Use the same helper your login uses
+import { getAdminToken } from "./utils/api";
+
 /** Simple guard for admin routes */
 function AdminGuard({ children }) {
-  const token = localStorage.getItem("adminToken");
+  const token = getAdminToken(); // reads "ge_admin_token"
   if (!token) return <Navigate to="/admin/login" replace />;
   return children;
 }
