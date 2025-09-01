@@ -3,7 +3,38 @@ import React, { useEffect, useMemo, useState, useCallback } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "../../assets/globaledge.png";
 import { adminShipments as AdminAPI, adminUsers, adminEmail, adminMock } from "../../utils/api";
+export default function AdminDashboard() {
+  const navigate = useNavigate();
+}
+  const [ready, setReady] = useState(false);
+  const [authErr, setAuthErr] = useState("");
 
+  useEffect(() => {
+    const t = getAdminToken();
+    if (!t) {
+      setAuthErr("No admin token found.");
+      navigate("/admin/login", { replace: true });
+      return;
+    }
+    adminAuth.me()
+      .then(() => setReady(true))
+      .catch((e) => {
+        console.error("[AdminDashboard] /admin/auth/me failed", e);
+        setAuthErr(`${e?.status ?? "no-status"} ${e?.message ?? "Auth check failed"}`);
+        navigate("/admin/login", { replace: true });
+      });
+  }, [navigate]);
+
+  if (!ready) {
+    return (
+      <div className="min-h-screen grid place-items-center p-6">
+        <div className="text-center">
+          <div className="text-sm text-gray-500">Checking admin session…</div>
+          {authErr && <div className="mt-2 text-xs text-red-600">{authErr}</div>}
+        </div>
+      </div>
+    );
+  }
 // --- mapper: API Shipment -> Admin row shape the table expects
 function mapDocToRow(s) {
   const service = s.serviceType
