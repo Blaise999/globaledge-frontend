@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Logo from "../../assets/globaledge.png";
 import { useAuth } from "../../auth/AuthContext";
-import { ShipAPI, geocode as GeoAPI } from "../../utils/api";
+ import { ShipAPI, geocode as GeoAPI } from "../../utils/api";
 
 // 🗺️ react-leaflet + leaflet
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
@@ -588,38 +588,10 @@ export default function TrackPage() {
 }
 
 /* ========================= Mapper ========================= */
-
-// Hide audit-style edits like `Origin: "France" → "Turkey"` or "Updated by admin"
-function looksLikeAdminEdit(ev = {}) {
-  const n = String(ev.location || "").toLowerCase();
-
-  if (!n) return false;
-  if (n.includes("updated by admin")) return true;
-
-  // arrows "->" or "→" usually indicate field changes
-  if (n.includes("->") || n.includes("→")) {
-    if (n.includes("origin:") || n.includes("destination:") || n.includes("address:")) return true;
-    // generic diff line, treat as audit
-    if (/"\s*->\s*"/.test(n) || /['"].*['"]\s*(->|→)\s*['"]/.test(n)) return true;
-  }
-  return false;
-}
-
-function dedupeEvents(list) {
-  const seen = new Set();
-  return list.filter((e) => {
-    const key = `${e.title}|${(e.location || "").trim()}|${e.code}|${new Date(e.ts).toISOString()}`;
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
 // Convert backend shipment doc → UI shape used by this page.
 function mapShipmentToTrackView(s) {
   const createdEvt = { title: "Label created", location: s.from || "Origin", ts: s.createdAt, code: "CRT" };
   const timeline = Array.isArray(s.timeline) ? s.timeline : [];
-
   const mappedEvents = timeline
     .map(ev => ({
       title: toTitle(ev.status),
@@ -627,13 +599,9 @@ function mapShipmentToTrackView(s) {
       ts: ev.at,
       code: ev.status,
     }))
-    // 🔒 strip admin edit/audit rows from public view
-    .filter(ev => !looksLikeAdminEdit(ev))
     .sort((a, b) => new Date(b.ts) - new Date(a.ts));
 
-  // collapse exact repeats (e.g., many CREATED rows)
-  const uniqueEvents = dedupeEvents(mappedEvents);
-  const events = uniqueEvents.length ? uniqueEvents : [createdEvt];
+  const events = mappedEvents.length ? mappedEvents : [createdEvt];
 
   // ── smarter place parser: last token is country, token before that is city
   const toPlace = (str = "") => {
