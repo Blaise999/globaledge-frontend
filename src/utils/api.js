@@ -6,10 +6,10 @@ const API_BASE =
     import.meta.env &&
     import.meta.env.VITE_API_BASE) ||
   (typeof window !== "undefined" && window.__API_BASE__) ||
-  "/api"; // backend mounted at /api
-export function getApiBase() { return API_BASE; }
-if (typeof window !== "undefined") window.__GE_API_BASE__ = API_BASE;
-
+  "/api"; // <- was "http://127.0.0.1:4000/api"
+export function getApiBase() { return API_BASE; }             // <-- add
+if (typeof window !== "undefined") window.__GE_API_BASE__ = API_BASE; // <-- add
+  
 // ---------- Token storage (simple localStorage helpers) ----------
 const USER_TOKEN_KEY = "ge_user_token";
 const ADMIN_TOKEN_KEY = "ge_admin_token";
@@ -51,9 +51,10 @@ export function setAdminToken(token) {
     }
   } catch (e) {
     console.error("[setAdminToken] persist failed:", e);
-    throw e; // bubble up so UI shows a clear error
+    throw e; // bubble up so UI shows a clear error instead of “weirdness”
   }
 }
+
 export function clearAdminToken() {
   setAdminToken(null);
 }
@@ -241,12 +242,13 @@ export const adminUsers = {
     });
   },
 
-  // ✅ Full UserDetails doc
+  // ✅ NEW: fetch full UserDetails doc for a user
   getDetails(userId, token = getAdminToken()) {
     return request(`/admin/users/${encodeURIComponent(userId)}/details`, { token });
   },
 
-  // ✅ Replace/save UserDetails doc; set {recompute:1} to recompute billing
+  // ✅ NEW: replace/save full UserDetails doc for a user
+  // pass { recompute: 1|0 } to control server-side billing recompute
   setDetails(userId, body, { recompute = 1 } = {}, token = getAdminToken()) {
     const path = withQuery(`/admin/users/${encodeURIComponent(userId)}/details`, {
       recompute,
@@ -282,35 +284,6 @@ export const adminMock = {
   },
 };
 
-// ---------- Admin: Email ----------
-export const adminEmail = {
-  send({ to, subject, body }, token = getAdminToken()) {
-    // backend expects html or text; we send html.
-    return request("/email/send", {
-      method: "POST",
-      body: { to, subject, html: body },
-      token,
-    });
-  },
-};
-
-// ---------- Geocode (NEW) ----------
-// Hits backend GET /api/geocode?q=City, Country -> { lat, lon }
-export const geocode = {
-  search(q, { signal } = {}) {
-    return request(withQuery("/geocode", { q }), { signal });
-  },
-  // convenience: returns {lat, lon} with nulls if not found
-  async resolve(place, opts) {
-    try {
-      const r = await geocode.search(place, opts);
-      return { lat: r?.lat ?? null, lon: r?.lon ?? null };
-    } catch {
-      return { lat: null, lon: null };
-    }
-  },
-};
-
 // ---------- Lightweight direct helpers ----------
 export async function apiGet(path, token) {
   return request(path, { token });
@@ -321,9 +294,22 @@ export async function apiPost(path, body, token) {
 export async function apiPatch(path, body, token) {
   return request(path, { method: "PATCH", body, token });
 }
+// ✅ NEW: PUT helper (used by setDetails)
 export async function apiPut(path, body, token) {
   return request(path, { method: "PUT", body, token });
 }
+
+// ---------- Admin: Email ----------
+export const adminEmail = {
+  send({ to, subject, body }, token = getAdminToken()) {
+    // backend expects html or text; we’ll send html.
+    return request("/email/send", {
+      method: "POST",
+      body: { to, subject, html: body },
+      token,
+    });
+  },
+};
 
 // ---------- Book from draft (helper) ----------
 export async function bookFromDraft(draft) {
@@ -333,4 +319,3 @@ export async function bookFromDraft(draft) {
 // ---- Back-compat module aliases ----
 export const AuthAPI = auth;
 export const ShipAPI = shipments;
-export const GeoAPI = geocode; // alias for convenience
