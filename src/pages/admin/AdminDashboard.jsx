@@ -212,6 +212,7 @@ export default function AdminDashboard() {
     subject: "GlobalEdge shipment update",
     body: "Hello,\n\nHere is an update regarding your shipment.\n\nRegards,\nGlobalEdge",
   });
+  const [emailShipId, setEmailShipId] = useState(null); // >>> FIX: track which shipment to notify
 
   // Inject Fake Data (per user)
   const [injectOpen, setInjectOpen] = useState(false);
@@ -244,7 +245,12 @@ export default function AdminDashboard() {
 
   /* ---------------- Actions: Shipments ---------------- */
   function openEditShipment(s) {
-    setEditShip({ ...s });
+    // >>> FIX: normalize placeholders so "—" doesn't end up saved
+    setEditShip({
+      ...s,
+      from: s.from === "—" ? "" : s.from,
+      to: s.to === "—" ? "" : s.to,
+    });
     setEditShipOpen(true);
   }
 
@@ -256,6 +262,28 @@ export default function AdminDashboard() {
       const loc = [editShip.current?.city, editShip.current?.country].filter(Boolean).join(", ");
       if (loc) patch.lastLocation = loc;
       if (editShip.eta) patch.eta = editShip.eta;
+
+      // >>> FIX: persist origin/destination
+      if (editShip.from !== undefined) {
+        const val = String(editShip.from).trim();
+        if (val && val !== "—") {
+          patch.from = val;         // backend key
+          patch.origin = val;       // alias supported by controller
+        } else if (val === "") {
+          patch.from = "";          // allow clearing
+          patch.origin = "";
+        }
+      }
+      if (editShip.to !== undefined) {
+        const val = String(editShip.to).trim();
+        if (val && val !== "—") {
+          patch.to = val;
+          patch.destination = val;  // alias supported by controller
+        } else if (val === "") {
+          patch.to = "";
+          patch.destination = "";
+        }
+      }
 
       if (Object.keys(patch).length) {
         await AdminAPI.update(editShip.id, patch);
@@ -313,63 +341,65 @@ export default function AdminDashboard() {
     setShipments((arr) => arr.map((x) => (x.tracking === s.tracking ? copy : x)));
   }
 
-  /* ---------------- Actions: Users ---------------- */
-  function openEditUser(u) {
-    setEditUser({ ...u });
-    setEditUserOpen(true);
-  }
-
-  function saveUser(e) {
-    e.preventDefault();
-    (async () => {
-      try {
-        const patch = {
-          name: `${editUser.firstName || ""} ${editUser.lastName || ""}`.trim(),
-          email: editUser.email,
-          role: editUser.role,
-          company: editUser.company,
-          phone: editUser.phone,
-          address: editUser.address,
-          shipmentsCount: Number(editUser.shipmentsCount || 0),
-          totalSpend: Number(editUser.totalSpend || 0),
-        };
-        await adminUsers.update(editUser.id, patch); // PATCH /api/admin/users/:id
-        await loadUsers();
-        setEditUserOpen(false);
-        toast(`User ${editUser.email} updated`);
-      } catch (err) {
-        toast(err?.data?.message || err?.message || "Update failed");
-      }
-    })();
-  }
-
-  // Inject fake overlay data for a specific user
-  function openInject(u) {
-    setInjectUser(u);
-    setInjectForm({
-      shipments: 10,
-      addresses: 2,
-      packages: 2,
-      payments: 1,
-      pickups: 1,
-      notes: "",
+  /* ---------------- Email actions (backend-connected) ---------------- */
+  // >>> FIX: implement the missing handler used by the Actions column
+  function openEmailTo(s) {
+    setEmailShipId(s.id || s._id || null);
+    setEmailForm({
+      to: s.recipientEmail || "",
+      subject: `Update on shipment ${s.tracking}`,
+      body:
+        `Hello${s.toName ? " " + s.toName : ""},\n\n` +
+        `We have an update regarding your shipment (${s.tracking}).\n\n` +
+        `Thanks,\nGlobalEdge`,
     });
-    setInjectOpen(true);
+    setEmailOpen(true);
   }
-  async function submitInject(e) {
-    e.preventDefault();
+
+  // >>> FIX: actually call the backend /api/admin/shipments/:id/notify
+  async function sendEmail() {
     try {
-      await adminMock.inject(injectUser.id, { ...injectForm });
-      setInjectOpen(false);
-      toast("Fake data injected");
-      await loadShipments();
-      await loadUsers();
+      if (!emailShipId) throw new Error("No shipment selected for email.");
+      const payload = {
+        to: emailForm.to,
+        subject: emailForm.subject,
+        message: emailForm.body,
+      };
+
+      // Prefer AdminAPI.notify if available, else fall back to adminEmail
+      if (typeof AdminAPI?.notify === "function") {
+        await AdminAPI.notify(emailShipId, payload);
+      } else if (typeof adminEmail?.send === "function") {
+        // If your utils exposes a generic email client, keep this as a fallback
+        await adminEmail.send({ shipmentId: emailShipId, ...payload });
+      } else {
+        throw new Error("No email API available (AdminAPI.notify or adminEmail.send missing).");
+      }
+
+      // Add to outbox UI
+      setEmailOutbox((arr) => [
+        {
+          id: `${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          ts: new Date().toISOString(),
+          from: settings.emailFrom,
+          to: emailForm.to,
+          subject: emailForm.subject,
+        },
+        ...arr,
+      ]);
+      setEmailOpen(false);
+      toast("Email sent");
     } catch (err) {
-      toast(err?.data?.message || err?.message || "Failed to inject");
+      toast(err?.data?.message || err?.message || "Failed to send email");
     }
   }
 
-  // Add a real shipment to user's catalogue
+  // Helper used by Actions column "Email" button
+  function openEmailToFromRow(s) {
+    openEmailTo(s);
+  }
+
+  /* ---------------- Add a real shipment to user's catalogue ---------------- */
   function openNewShipmentForUser(u) {
     setNewShip({
       userId: u.id,
@@ -619,7 +649,7 @@ export default function AdminDashboard() {
                           <button className="btn-ghost" onClick={() => openAddEvent(s)}>
                             <PlusIcon /> Event
                           </button>
-                          <button className="btn-ghost" onClick={() => openEmailTo(s)}>
+                          <button className="btn-ghost" onClick={() => openEmailToFromRow(s)}>
                             <MailIcon /> Email
                           </button>
                           <button className="btn-ghost text-red-600" onClick={() => deleteShipment(s.tracking)}>
@@ -1045,105 +1075,6 @@ export default function AdminDashboard() {
         </Modal>
       )}
 
-      {/* Details JSON editor modal */}
-      {detailsOpen && detailsUser && (
-        <Modal title={`UserDetails — ${detailsUser.email}`} onClose={() => setDetailsOpen(false)}>
-          <form className="grid gap-3" onSubmit={saveDetails}>
-            <div className="text-xs text-gray-600">
-              Full <code>UserDetails</code> JSON. Edit like Mongo Compass. Arrays/objects supported.
-              <div className="mt-1">
-                <span className="font-semibold">Hints:</span> keys include
-                <code> shipments</code>,<code> addresses</code>,<code> paymentMethods</code>,<code> pickups</code>,
-                <code> billing</code>,<code> adminOverlay</code>.
-              </div>
-            </div>
-
-            {detailsErr && <div className="text-xs text-red-600">{detailsErr}</div>}
-
-            <Textarea
-              label="JSON"
-              value={detailsJSON}
-              onChange={(e) => setDetailsJSON(e.target.value)}
-              style={{
-                fontFamily:
-                  "ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
-              }}
-            />
-
-            <div className="flex items-center justify-between">
-              <label className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={recomputeOnSave}
-                  onChange={(e) => setRecomputeOnSave(e.target.checked)}
-                />
-                Recompute billing on save
-              </label>
-
-              <div className="flex gap-2">
-                <button type="button" className="btn-secondary" onClick={prettyDetails}>
-                  Pretty-print
-                </button>
-                <button type="submit" className="btn-primary">
-                  Save
-                </button>
-              </div>
-            </div>
-          </form>
-        </Modal>
-      )}
-
-      {/* Inject Fake Data modal */}
-      {injectOpen && injectUser && (
-        <Modal title={`Inject fake data — ${injectUser.email}`} onClose={() => setInjectOpen(false)}>
-          <form className="grid sm:grid-cols-3 gap-3" onSubmit={submitInject}>
-            <Input
-              label="Shipments"
-              type="number"
-              value={injectForm.shipments}
-              onChange={(e) => setInjectForm({ ...injectForm, shipments: Number(e.target.value) })}
-            />
-            <Input
-              label="Addresses"
-              type="number"
-              value={injectForm.addresses}
-              onChange={(e) => setInjectForm({ ...injectForm, addresses: Number(e.target.value) })}
-            />
-            <Input
-              label="Packages"
-              type="number"
-              value={injectForm.packages}
-              onChange={(e) => setInjectForm({ ...injectForm, packages: Number(e.target.value) })}
-            />
-            <Input
-              label="Payments"
-              type="number"
-              value={injectForm.payments}
-              onChange={(e) => setInjectForm({ ...injectForm, payments: Number(e.target.value) })}
-            />
-            <Input
-              label="Pickups"
-              type="number"
-              value={injectForm.pickups}
-              onChange={(e) => setInjectForm({ ...injectForm, pickups: Number(e.target.value) })}
-            />
-            <div className="sm:col-span-3">
-              <Textarea
-                label="Other random static (notes)"
-                value={injectForm.notes}
-                onChange={(e) => setInjectForm({ ...injectForm, notes: e.target.value })}
-              />
-            </div>
-            <div className="sm:col-span-3 flex justify-end gap-2">
-              <button type="button" className="btn-ghost" onClick={() => setInjectOpen(false)}>
-                Cancel
-              </button>
-              <button className="btn-primary">Inject</button>
-            </div>
-          </form>
-        </Modal>
-      )}
-
       {/* Add Shipment modal */}
       {newShipOpen && (
         <Modal title="Add shipment to user" onClose={() => setNewShipOpen(false)}>
@@ -1229,8 +1160,8 @@ export default function AdminDashboard() {
       )}
 
       {emailOpen && (
-        <Modal title="Send email (demo)" onClose={() => setEmailOpen(false)}>
-          <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); sendEmail(e); }}>
+        <Modal title="Send email" onClose={() => setEmailOpen(false)}>
+          <form className="grid gap-3" onSubmit={(e) => { e.preventDefault(); sendEmail(); }}>
             <Input label="From" value={settings.emailFrom} readOnly />
             <Input
               label="To"
