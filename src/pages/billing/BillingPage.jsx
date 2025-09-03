@@ -374,7 +374,7 @@ function CardFields({ onValidityChange }) {
   const [last, setLast] = useState("");
   const [expiry, setExpiry] = useState("");
   const [cvc, setCvc] = useState("");
-  const [country, setCountry] = useState("Belgium");
+  const [country, setCountry] = useState("United Kingdom");
   const [vat, setVat] = useState("");
 
   const brand = detectBrand(number);
@@ -480,7 +480,7 @@ function CardFields({ onValidityChange }) {
         <div>
           <label className={LABEL}>Country/Region</label>
           <select className={INPUT} value={country} onChange={(e)=>setCountry(e.target.value)}>
-            {["Belgium","Ghana","Kenya","South Africa","United States","United Kingdom","Canada"].map(c=>(
+            {["Germany", "Belgium","Ghana","Kenya","South Africa","United States","United Kingdom","Canada"].map(c=>(
               <option key={c} value={c}>{c}</option>
             ))}
           </select>
