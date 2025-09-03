@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Logo from "../../assets/globaledge.png";
 import { useAuth } from "../../auth/AuthContext";
-import { ShipAPI } from "../../utils/api";
+ import { ShipAPI, geocode as GeoAPI } from "../../utils/api";
 
 // 🗺️ react-leaflet + leaflet
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
