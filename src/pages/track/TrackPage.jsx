@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Logo from "../../assets/globaledge.png";
 import { useAuth } from "../../auth/AuthContext";
- import { ShipAPI, geocode as GeoAPI } from "../../utils/api";
+import { ShipAPI, geocode as GeoAPI } from "../../utils/api";
 
 // 🗺️ react-leaflet + leaflet
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
@@ -214,6 +214,36 @@ function lookupCoords(city = "", country = "") {
     if (k.toLowerCase().startsWith(`${lower},`)) return CITY_COORDS[k];
   }
   return { lat: null, lon: null };
+}
+
+/* ---------- NEW: filter out audit/editor timeline items ---------- */
+const ALLOWED_SCAN_STATUSES = new Set([
+  "CREATED",
+  "PICKED_UP",
+  "IN_TRANSIT",
+  "ARRIVED",
+  "DEPARTED",
+  "OUT_FOR_DELIVERY",
+  "DELIVERED",
+  "EXCEPTION",
+  "CUSTOMS",
+  "CUSTOMS_HOLD",
+  "CUSTOMS_RELEASED",
+  "HELD",
+  "RETURNED",
+]);
+
+function isAuditTimelineItem(ev = {}) {
+  const n = (ev.note || ev.message || "").toLowerCase();
+  const s = String(ev.status || "").toUpperCase();
+
+  if (n.startsWith("updated by")) return true;
+  if (n.includes("updated by admin")) return true;
+  if (n.includes("→") || n.includes("->")) return true;
+
+  if (!ALLOWED_SCAN_STATUSES.has(s)) return true;
+
+  return false;
 }
 
 /* ========================= Main ========================= */
@@ -590,18 +620,37 @@ export default function TrackPage() {
 /* ========================= Mapper ========================= */
 // Convert backend shipment doc → UI shape used by this page.
 function mapShipmentToTrackView(s) {
-  const createdEvt = { title: "Label created", location: s.from || "Origin", ts: s.createdAt, code: "CRT" };
-  const timeline = Array.isArray(s.timeline) ? s.timeline : [];
-  const mappedEvents = timeline
+  // source timeline and filter out audit entries
+  const sourceTimeline = Array.isArray(s.timeline) ? s.timeline : [];
+  const shipmentEvents = sourceTimeline.filter(ev => !isAuditTimelineItem(ev));
+
+  // decide single "Created" timestamp
+  let createdTs = s.createdAt || null;
+  if (!createdTs) {
+    const firstCreated = sourceTimeline
+      .filter(ev => String(ev.status).toUpperCase() === "CREATED")
+      .sort((a, b) => new Date(a.at) - new Date(b.at))[0];
+    if (firstCreated?.at) createdTs = firstCreated.at;
+  }
+  const createdEvt = {
+    title: "Label created",
+    location: s.from || "Origin",
+    ts: createdTs,
+    code: "CREATED",
+  };
+
+  const mappedEvents = shipmentEvents
     .map(ev => ({
-      title: toTitle(ev.status),
-      location: ev.note || "",
+      title: toTitle(String(ev.status || "").replace(/_/g, " ").toLowerCase()),
+      location: ev.note || ev.location || "",
       ts: ev.at,
-      code: ev.status,
+      code: String(ev.status || "").toUpperCase(),
     }))
+    .filter(e => e.code !== "CREATED")
     .sort((a, b) => new Date(b.ts) - new Date(a.ts));
 
-  const events = mappedEvents.length ? mappedEvents : [createdEvt];
+  const events = ([createdEvt.ts ? createdEvt : null, ...mappedEvents].filter(Boolean))
+    .sort((a, b) => new Date(b.ts) - new Date(a.ts));
 
   // ── smarter place parser: last token is country, token before that is city
   const toPlace = (str = "") => {
@@ -616,7 +665,7 @@ function mapShipmentToTrackView(s) {
     return { city: cityGuess, country, lat, lon };
   };
 
-  /* ---------- NEW: normalize contacts from server ---------- */
+  /* ---------- normalize contacts from server ---------- */
   const shipper = s.shipper || s.capturedContact || { name: "", email: "", phone: "" };
   const recipient = {
     name: s.recipient?.name || s.recipientName || "",
@@ -639,7 +688,7 @@ function mapShipmentToTrackView(s) {
 
     exception: s.status === "Exception" ? { message: "Attention required", next: "" } : null,
 
-    /* ---------- NEW: expose contacts ---------- */
+    /* ---------- expose contacts ---------- */
     shipper,
     recipient,
 
