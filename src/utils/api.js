@@ -333,4 +333,4 @@ export async function bookFromDraft(draft) {
 // ---- Back-compat module aliases ----
 export const AuthAPI = auth;
 export const ShipAPI = shipments;
-export const GeoAPI = geocode; // alias for convenience
+export const GeoAPI = geocode; // alias for conveniences
