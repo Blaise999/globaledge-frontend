@@ -286,6 +286,12 @@ export default function TrackPage() {
       const mapped = mapShipmentToTrackView(raw);
       setData(mapped);
       setView("result");
+
+      // 🔹 hydrate coords asynchronously using backend geocoder
+      try {
+        const hydrated = await geocodeHydrate(mapped);
+        setData((prev) => (prev ? { ...prev, ...hydrated } : { ...mapped, ...hydrated }));
+      } catch {}
     } catch (e) {
       const msg =
         e?.data?.message ||
@@ -702,7 +708,51 @@ function mapShipmentToTrackView(s) {
       dims: s.parcel ? fmtDims(s.parcel.length, s.parcel.width, s.parcel.height) : "",
       duties: s.freight?.incoterm || "",
     },
+
+    // 🔹 Preserve raw strings for geocoding
+    rawFrom: s.from || "",
+    rawTo: s.to || "",
+    rawCurrent: s.lastLocation || s.from || "",
   };
+}
+
+// 🔹 Geocode hydrator — upgrades origin/current/destination with real lat/lon via backend
+async function geocodeHydrate(mapped) {
+  const out = {
+    origin: { ...mapped.origin },
+    current: { ...mapped.current },
+    destination: { ...mapped.destination },
+  };
+
+  async function ensureLatLon(placeObj, rawFallback) {
+    const has = (v) => v != null && v !== "";
+    const needs = !(has(placeObj.lat) && has(placeObj.lon));
+
+    if (!needs) return placeObj;
+
+    // Build a good query string
+    const q =
+      (rawFallback && rawFallback.trim()) ||
+      [placeObj.city, placeObj.country].filter(Boolean).join(", ");
+
+    if (!q) return placeObj;
+
+    try {
+      const { lat, lon } = await GeoAPI.resolve(q);
+      if (lat != null && lon != null) {
+        return { ...placeObj, lat, lon };
+      }
+    } catch {
+      // ignore errors; static coords are already present when possible
+    }
+    return placeObj;
+  }
+
+  out.origin = await ensureLatLon(out.origin, mapped.rawFrom);
+  out.current = await ensureLatLon(out.current, mapped.rawCurrent);
+  out.destination = await ensureLatLon(out.destination, mapped.rawTo);
+
+  return out;
 }
 
 function fmtDims(l, w, h) {
