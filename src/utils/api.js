@@ -65,7 +65,9 @@ export const clearAuthToken = clearUserToken;
 
 // ---------- Core request helper ----------
 function authHeader(token) {
-  return token ? { Authorization: `Bearer ${token}` } : {};
+  return (typeof token === "string" && token.length)
+    ? { Authorization: `Bearer ${token}` }
+    : {};
 }
 
 async function request(
@@ -216,9 +218,34 @@ export const adminShipments = {
       token,
     });
   },
-  notify(id, token = getAdminToken()) {
-    return request(`/admin/shipments/${id}/notify`, { method: "POST", token });
+
+  // Flexible notify:
+  //  - notify(id)
+  //  - notify(id, body)
+  //  - notify(id, tokenString)
+  //  - notify(id, body, tokenString)
+  notify(id, payloadOrToken, maybeToken) {
+    let body, token;
+
+    if (typeof payloadOrToken === "string" || payloadOrToken == null) {
+      // notify(id) or notify(id, tokenString)
+      body  = undefined;
+      token = payloadOrToken || getAdminToken();
+    } else {
+      // notify(id, body) or notify(id, body, tokenString)
+      body  = payloadOrToken;
+      token = (typeof maybeToken === "string" && maybeToken.length)
+        ? maybeToken
+        : getAdminToken();
+    }
+
+    return request(`/admin/shipments/${id}/notify`, {
+      method: "POST",
+      body,
+      token,
+    });
   },
+
   // ADD: create a shipment (used by Admin Add Shipment modal)
   create(body, token = getAdminToken()) {
     return request(`/admin/shipments`, { method: "POST", body, token });
@@ -334,3 +361,4 @@ export async function bookFromDraft(draft) {
 export const AuthAPI = auth;
 export const ShipAPI = shipments;
 export const GeoAPI = geocode; // alias for conveniences
+export const AdminAPI = adminShipments;
