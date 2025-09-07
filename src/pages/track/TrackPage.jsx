@@ -12,6 +12,9 @@ import markerIcon2x from "leaflet/dist/images/marker-icon-2x.png";
 import markerIcon from "leaflet/dist/images/marker-icon.png";
 import markerShadow from "leaflet/dist/images/marker-shadow.png";
 
+// ⚙️ Thunderforest key from env (don’t hardcode)
+const TF_KEY = import.meta.env.VITE_THUNDERFOREST_KEY;
+
 // fix default marker assets for bundlers
 L.Icon.Default.mergeOptions({
   iconUrl: markerIcon,
@@ -619,6 +622,26 @@ export default function TrackPage() {
           </div>
         )}
       </main>
+
+      {/* ---------- NEW: For further enquiries bar ---------- */}
+      <section id="support" className="border-t bg-gradient-to-r from-gray-50 to-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+            <div className="inline-flex items-center gap-2 px-2 py-1 rounded-full text-xs font-semibold bg-red-50 text-red-700 ring-1 ring-red-100">
+              <HeadsetIcon /> Need help?
+            </div>
+            <div className="text-sm text-gray-700">
+              For further enquiries, email{" "}
+              <a
+                href="mailto:Shipglobaledge@gmail.com"
+                className="font-semibold text-red-700 hover:underline"
+              >
+                Shipglobaledge@gmail.com
+              </a>.
+            </div>
+          </div>
+        </div>
+      </section>
     </div>
   );
 }
@@ -952,6 +975,19 @@ function RealMap({ origin, destination, current, routeGeo = [], status }) {
   const currentIcon = makeIcon("#dc2626", 18);  // red
   const destIcon    = makeIcon("#000000", 14);  // black
 
+  // ---------- NEW: English-first tiles (Thunderforest) with CARTO fallback + retina
+  const TF_STYLE = "atlas"; // alternatives: 'outdoors','transport','landscape','neighbourhood','mobile-atlas'
+  const retina = (typeof window !== "undefined" && window.devicePixelRatio > 1) ? "@2x" : "";
+  const tfUrl = `https://{s}.tile.thunderforest.com/${TF_STYLE}/{z}/{x}/{y}.png${retina}?apikey=${TF_KEY}`;
+  const cartoUrl = `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}${retina}.png`;
+
+  const useThunderforest = Boolean(TF_KEY);
+  const tileUrl = useThunderforest ? tfUrl : cartoUrl;
+  const tileAttribution =
+    useThunderforest
+      ? '© OpenStreetMap contributors, Tiles © Thunderforest'
+      : '© OpenStreetMap contributors, © CARTO';
+
   function FitAndZoom() {
     const map = useMap();
     setTimeout(() => {
@@ -975,11 +1011,19 @@ function RealMap({ origin, destination, current, routeGeo = [], status }) {
         zoom={6}
         style={{ height: "280px", width: "100%" }}
         scrollWheelZoom={false}
+        zoomAnimation
+        markerZoomAnimation
+        preferCanvas={false}
       >
         <FitAndZoom />
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={tileAttribution}
+          url={tileUrl}
+          subdomains={['a','b','c']}
+          updateWhenZooming
+          updateWhenIdle={false}
+          keepBuffer={4}
+          detectRetina={false} // we already toggle @2x via URL
         />
 
         {line.length >= 2 && <Polyline positions={line} />}
@@ -1001,7 +1045,7 @@ function RealMap({ origin, destination, current, routeGeo = [], status }) {
         )}
       </MapContainer>
       <div className="px-3 py-2 text-[11px] text-gray-500 border-t bg-white">
-        Map data © OpenStreetMap contributors
+        {tileAttribution}
       </div>
     </div>
   );
