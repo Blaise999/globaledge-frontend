@@ -978,7 +978,8 @@ function RealMap({ origin, destination, current, routeGeo = [], status }) {
   // ---------- NEW: English-first tiles (Thunderforest) with CARTO fallback + retina
   const TF_STYLE = "atlas"; // alternatives: 'outdoors','transport','landscape','neighbourhood','mobile-atlas'
   const retina = (typeof window !== "undefined" && window.devicePixelRatio > 1) ? "@2x" : "";
-  const tfUrl = `https://{s}.tile.thunderforest.com/${TF_STYLE}/{z}/{x}/{y}.png${retina}?apikey=${TF_KEY}`;
+  const tfUrl = `https://{s}.tile.thunderforest.com/${TF_STYLE}/{z}/{x}/{y}${retina}.png?apikey=${TF_KEY}`;
+
   const cartoUrl = `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}${retina}.png`;
 
   const useThunderforest = Boolean(TF_KEY);
