@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Logo from "./assets/globaledge.png";
-
+import TranslateToggle from "./utils/translatetoggle";
+import { loadGoogleTranslate, initWidget, ensureBannerHidden, setLanguage } from "./utils/googleTranslate";
+import TranslateButton from "./TranslateDot";
+import TranslateDot from "./TranslateDot";
 export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [trackingId, setTrackingId] = useState("");
@@ -101,25 +104,37 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-white text-gray-900 pb-24 md:pb-0">
-      {/* ======= Header ======= */}
+  <div className="min-h-screen bg-white text-gray-900 pb-24 md:pb-0">
+     {/* ======= Header ======= */}
       <header className="sticky top-0 z-50 backdrop-blur supports-[backdrop-filter]:bg-white/70 bg-white/90 border-b border-gray-100">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="h-16 flex items-center justify-between">
             {/* Logo */}
             <Link to="/" className="flex items-center">
-              <img src={Logo} alt="GlobalEdge" className="h-14 w-auto object-contain" />
+              <img
+                src={Logo}
+                alt="GlobalEdge"
+                className="h-14 w-auto object-contain notranslate"
+              />
             </Link>
 
             {/* Desktop nav */}
             <nav className="hidden md:flex items-center gap-6">
               {nav.map((n) =>
                 n.to.startsWith("/#") ? (
-                  <a key={n.label} href={n.to.replace("/", "")} className="text-sm font-medium text-gray-700 hover:text-gray-900">
+                  <a
+                    key={n.label}
+                    href={n.to.replace("/", "")}
+                    className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                  >
                     {n.label}
                   </a>
                 ) : (
-                  <Link key={n.label} to={n.to} className="text-sm font-medium text-gray-700 hover:text-gray-900">
+                  <Link
+                    key={n.label}
+                    to={n.to}
+                    className="text-sm font-medium text-gray-700 hover:text-gray-900"
+                  >
                     {n.label}
                   </Link>
                 )
@@ -128,13 +143,25 @@ export default function App() {
 
             {/* Right actions */}
             <div className="hidden md:flex items-center gap-3">
-              <Link to="/auth/login" className="px-3.5 py-2 text-sm font-medium rounded-xl hover:bg-gray-100">
+              {/* 🌐 Sleek translate pill (the ONLY instance that mounts/initializes) */}
+              <TranslateDot/>
+
+              <Link
+                to="/auth/login"
+                className="px-3.5 py-2 text-sm font-medium rounded-xl hover:bg-gray-100"
+              >
                 Log in
               </Link>
-              <Link to="/auth/register" className="px-4 py-2 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700">
+              <Link
+                to="/auth/register"
+                className="px-4 py-2 text-sm font-semibold rounded-xl bg-red-600 text-white hover:bg-red-700"
+              >
                 Register
               </Link>
-              <Link to="/services/express" className="px-4 py-2 text-sm font-semibold rounded-xl bg-black text-white hover:bg-gray-900">
+              <Link
+                to="/services/express"
+                className="px-4 py-2 text-sm font-semibold rounded-xl bg-black text-white hover:bg-gray-900"
+              >
                 Create Shipment
               </Link>
             </div>
@@ -145,7 +172,13 @@ export default function App() {
               aria-label="Open menu"
               onClick={() => setMobileOpen((s) => !s)}
             >
-              <svg viewBox="0 0 24 24" className="w-6 h-6" fill="none" stroke="currentColor" strokeWidth="1.6">
+              <svg
+                viewBox="0 0 24 24"
+                className="w-6 h-6"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+              >
                 <path d="M4 6h16M4 12h16M4 18h16" strokeLinecap="round" />
               </svg>
             </button>
@@ -156,6 +189,11 @@ export default function App() {
         {mobileOpen && (
           <div className="md:hidden border-t border-gray-100 bg-white">
             <div className="px-4 py-3 space-y-2">
+              {/* 🌐 Mobile copy of the pill — no mount, no init */}
+              <div className="mb-2">
+                <TranslateToggle mount={false} init={false} />
+              </div>
+
               {nav.map((n) =>
                 n.to.startsWith("/#") ? (
                   <a
@@ -177,14 +215,27 @@ export default function App() {
                   </Link>
                 )
               )}
+
               <div className="pt-2 flex gap-2">
-                <Link to="/auth/login" className="flex-1 text-center px-3 py-2 rounded-lg bg-gray-100" onClick={() => setMobileOpen(false)}>
+                <Link
+                  to="/auth/login"
+                  className="flex-1 text-center px-3 py-2 rounded-lg bg-gray-100"
+                  onClick={() => setMobileOpen(false)}
+                >
                   Log in
                 </Link>
-                <Link to="/auth/register" className="flex-1 text-center px-3 py-2 rounded-lg bg-red-600 text-white" onClick={() => setMobileOpen(false)}>
+                <Link
+                  to="/auth/register"
+                  className="flex-1 text-center px-3 py-2 rounded-lg bg-red-600 text-white"
+                  onClick={() => setMobileOpen(false)}
+                >
                   Register
                 </Link>
-                <Link to="/services/express" className="flex-1 text-center px-3 py-2 rounded-lg bg-black text-white" onClick={() => setMobileOpen(false)}>
+                <Link
+                  to="/services/express"
+                  className="flex-1 text-center px-3 py-2 rounded-lg bg-black text-white"
+                  onClick={() => setMobileOpen(false)}
+                >
                   Create Shipment
                 </Link>
               </div>
@@ -192,7 +243,6 @@ export default function App() {
           </div>
         )}
       </header>
-
       {/* ======= Hero / Track ======= */}
       <section id="track" className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-gradient-to-b from-red-50/40 via-white to-white md:from-gray-50" />

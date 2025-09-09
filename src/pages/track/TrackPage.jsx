@@ -636,7 +636,7 @@ export default function TrackPage() {
                 href="mailto:Shipglobaledge@gmail.com"
                 className="font-semibold text-red-700 hover:underline"
               >
-                Shipglobaledge@gmail.com
+                Globaledgeshippingservice@gmail.com
               </a>.
             </div>
           </div>
