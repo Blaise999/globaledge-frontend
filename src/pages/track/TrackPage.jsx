@@ -633,10 +633,10 @@ export default function TrackPage() {
             <div className="text-sm text-gray-700">
               For further enquiries, email{" "}
               <a
-                href="mailto:Shipglobaledge@gmail.com"
+                href="mailto:Globaledgeshippings@gmail.com"
                 className="font-semibold text-red-700 hover:underline"
               >
-                Globaledgeshippingservice@gmail.com
+                Globaledgeshippings@gmail.com
               </a>.
             </div>
           </div>
