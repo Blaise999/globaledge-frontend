@@ -35,10 +35,10 @@ import ContactPage from "./pages/info/ContactPage.jsx";
 import FAQPage from "./pages/info/FAQPage.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
-import AppLayout from "./layout"; 
+import AppLayout from "./layout.jsx"; 
 
 // ✅ Use the same helper your login uses
-import { getAdminToken } from "./utils/api";
+import { getAdminToken } from "./utils/api.js";
 
 /** Simple guard for admin routes */
 function AdminGuard({ children }) {
