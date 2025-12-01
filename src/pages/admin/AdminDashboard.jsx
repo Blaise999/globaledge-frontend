@@ -17,7 +17,7 @@ import {
   getAdminToken, // <-- make sure these exist in ../../utils/api
 } from "../../utils/api";
 // SUPPORT: import supabase client (pure frontend, no backend for chat)
-import { supabase } from "../../lib/supabaseClient";
+import { supabase } from "../../libs/supabaseClient";
 
 /* ---------------- mapper: API Shipment -> Admin row shape ---------------- */
 function mapDocToRow(s) {
