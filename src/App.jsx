@@ -6,6 +6,7 @@ import { loadGoogleTranslate, initWidget, ensureBannerHidden, setLanguage } from
 import TranslateButton from "./TranslateDot";
 import TranslateDot from "./TranslateDot";
 import { ChatWidget } from "./components/support/ChatWidget";
+
 export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [trackingId, setTrackingId] = useState("");
@@ -273,7 +274,7 @@ export default function App() {
                   navigate(`/track?ref=${trackingId.trim()}`);
                 }
               }}
-              className="mt-6 p-2 rounded-2xl bg-white border border-gray-200 shadow-md flex items-stretch gap-2"
+              className="mt-6 p-2 rounded-2xl bg.white border border-gray-200 shadow-md flex items-stretch gap-2"
             >
               <div className="flex items-center px-3 text-gray-400">
                 <svg viewBox="0 0 24 24" className="w-5 h-5" fill="none" stroke="currentColor" strokeWidth="1.6">
@@ -728,6 +729,9 @@ export default function App() {
           Track
         </Link>
       </div>
+
+      {/* Support chat widget */}
+      <ChatWidget />
     </div>
   );
 }
