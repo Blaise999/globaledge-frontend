@@ -157,7 +157,7 @@ export function ChatWidget() {
   }
 
   const suggestions = [
-    "I want to ship from Nigeria to the US – how does it work?",
+    "I want to ship from France to the US – how does it work?",
     "What are your rates for Europe-bound shipments?",
     "Can you help with customs and last-mile delivery?",
   ];
