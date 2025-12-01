@@ -1,7 +1,7 @@
 // src/layouts/AppLayout.jsx
 import React from "react";
 import { Outlet } from "react-router-dom";
-import { ChatWidget } from "../components/support/ChatWidget";
+import { ChatWidget } from "./components/support/ChatWidget";
 
 export default function AppLayout() {
   return (
