@@ -10,11 +10,13 @@
     "preview": "vite preview --host 127.0.0.1 --port 4175 --strictPort"
   },
   "dependencies": {
+    "@supabase/supabase-js": "^2.86.0",
     "leaflet": "^1.9.4",
+    "lucide-react": "^0.555.0",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "react-leaflet": "^5.0.0",
-    "react-router-dom": "^7.8.1"
+    "react-router-dom": "^7.9.6"
   },
   "devDependencies": {
     "@eslint/js": "^9.33.0",

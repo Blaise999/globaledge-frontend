@@ -5,6 +5,7 @@ import TranslateToggle from "./utils/translatetoggle";
 import { loadGoogleTranslate, initWidget, ensureBannerHidden, setLanguage } from "./utils/googleTranslate";
 import TranslateButton from "./TranslateDot";
 import TranslateDot from "./TranslateDot";
+import { ChatWidget } from "./components/support/ChatWidget";
 export default function App() {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [trackingId, setTrackingId] = useState("");

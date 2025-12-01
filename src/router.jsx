@@ -35,6 +35,8 @@ import ContactPage from "./pages/info/ContactPage.jsx";
 import FAQPage from "./pages/info/FAQPage.jsx";
 import NotFound from "./pages/NotFound.jsx";
 
+import AppLayout from "./layout";
+
 // ✅ Use the same helper your login uses
 import { getAdminToken } from "./utils/api";
 
