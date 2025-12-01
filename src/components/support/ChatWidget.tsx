@@ -102,7 +102,7 @@ export function ChatWidget() {
     const geo = await fetchGeo();
 
     const { data, error } = await supabase
-      .from("ge_conversations")
+      .from("conversations")
       .insert({
         name: name || null,
         email: email || null,
@@ -151,7 +151,7 @@ export function ChatWidget() {
     if (error) console.error("send ge_message error", error);
 
     await supabase
-      .from("ge_conversations")
+      .from("conversations")
       .update({ last_message: text, status: "open" })
       .eq("id", convId);
   }

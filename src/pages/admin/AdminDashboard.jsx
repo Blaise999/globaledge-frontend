@@ -161,7 +161,7 @@ export default function AdminDashboard() {
     setSupportErr("");
     try {
       const { data, error } = await supabase
-        .from("ge_conversations")
+        .from("conversations")
         .select(
           "id, name, email, ip, city, region, country, country_code, last_message, first_page, created_at"
         )
@@ -169,7 +169,7 @@ export default function AdminDashboard() {
         .limit(50);
 
       if (error) {
-        console.error("Error loading ge_conversations:", error);
+        console.error("Error loading conversations:", error);
         setSupportErr(
           error.message || "Failed to load support conversations."
         );
@@ -277,7 +277,7 @@ export default function AdminDashboard() {
       }
 
       await supabase
-        .from("ge_conversations")
+        .from("conversations")
         .update({ last_message: text, status: "open" })
         .eq("id", supportSelected.id);
     } catch (err) {
@@ -1072,7 +1072,7 @@ export default function AdminDashboard() {
               Conversations created from the Global Edge floating support
               widget. Replies you send here appear instantly in the
               visitor&apos;s chat. All data is stored in Supabase
-              (<code>ge_conversations</code>,{" "}
+              (<code>conversations</code>,{" "}
               <code>ge_messages</code>) – no backend calls.
             </p>
 
