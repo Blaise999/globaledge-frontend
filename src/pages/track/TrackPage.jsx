@@ -94,11 +94,13 @@ export default function TrackPage() {
       setData(mapped);
       setView("result");
 
-      // 🔹 hydrate coords asynchronously using backend geocoder
+      // 🔹 hydrate coords asynchronously using backend geocoder (primary) + CSV fallback
       try {
         const hydrated = await geocodeHydrate(mapped);
         setData((prev) => (prev ? { ...prev, ...hydrated } : { ...mapped, ...hydrated }));
-      } catch {}
+      } catch {
+        // ignore hydration errors; we'll still have the non-geo data
+      }
     } catch (e) {
       const msg =
         e?.data?.message ||
@@ -546,8 +548,9 @@ function mapShipmentToTrackView(s) {
     const cityGuess = parts.length >= 2 ? parts[parts.length - 2] : parts[0];
 
     const country = normCountryToCode(countryRaw);
-    const { lat, lon } = lookupCoords(cityGuess, country);
-    return { city: cityGuess, country, lat, lon };
+
+    // 🔹 Only parse city/country here; let geocodeHydrate do GeoAPI → CSV fallback
+    return { city: cityGuess, country, lat: null, lon: null };
   };
 
   /* ---------- normalize contacts from server ---------- */
@@ -595,7 +598,7 @@ function mapShipmentToTrackView(s) {
   };
 }
 
-// 🔹 Geocode hydrator — upgrades origin/current/destination with real lat/lon via backend
+// 🔹 Geocode hydrator — backend geocoder first, CSV/static fallback
 async function geocodeHydrate(mapped) {
   const out = {
     origin: { ...mapped.origin },
@@ -605,25 +608,36 @@ async function geocodeHydrate(mapped) {
 
   async function ensureLatLon(placeObj, rawFallback) {
     const has = (v) => v != null && v !== "";
-    const needs = !(has(placeObj.lat) && has(placeObj.lon));
 
-    if (!needs) return placeObj;
+    // Already have coords? Just return.
+    if (has(placeObj.lat) && has(placeObj.lon)) {
+      return placeObj;
+    }
 
-    // Build a good query string
+    // Build a good query string for backend geocoder
     const q =
       (rawFallback && rawFallback.trim()) ||
       [placeObj.city, placeObj.country].filter(Boolean).join(", ");
 
-    if (!q) return placeObj;
-
-    try {
-      const { lat, lon } = await GeoAPI.resolve(q);
-      if (lat != null && lon != null) {
-        return { ...placeObj, lat, lon };
+    // 1️⃣ Try backend /api/geocode first
+    if (q) {
+      try {
+        const { lat, lon } = await GeoAPI.resolve(q);
+        if (lat != null && lon != null) {
+          return { ...placeObj, lat, lon };
+        }
+      } catch {
+        // ignore API errors; we'll fall back to static DB
       }
-    } catch {
-      // ignore errors; static coords are already present when possible
     }
+
+    // 2️⃣ Fallback: static city DB (CSV + base geoDb)
+    const staticCoords = lookupCoords(placeObj.city || "", placeObj.country || "");
+    if (has(staticCoords.lat) && has(staticCoords.lon)) {
+      return { ...placeObj, lat: staticCoords.lat, lon: staticCoords.lon };
+    }
+
+    // If nothing works, return original object
     return placeObj;
   }
 
@@ -1100,7 +1114,7 @@ function InfoIcon() {
       strokeWidth="1.8"
     >
       <circle cx="12" cy="12" r="10" />
-      <path d="M12 8h.01M11 12h2v4h-2" />
+      <path d="M12 8h.01M11 12h2v4" />
     </svg>
   );
 }
