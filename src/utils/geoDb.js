@@ -44,7 +44,7 @@ export const COUNTRY_ALIASES = {
   "turkey": "TR", "tr": "TR",
 
   // Middle East
-  "syria": "SY", "sy": "SY",          // 🔹 added
+  "syria": "SY", "sy": "SY",
   "united arab emirates": "AE", "uae": "AE", "ae": "AE",
   "qatar": "QA", "qa": "QA",
   "saudi arabia": "SA", "sa": "SA",
@@ -119,7 +119,8 @@ export const CITY_COORDS = {
   "Munich, DE":       { lat: 48.1351, lon: 11.5820 },
   "Hamburg, DE":      { lat: 53.5511, lon: 9.9937 },
   "Cologne, DE":      { lat: 50.9375, lon: 6.9603 },
-  "Rostock, DE":      { lat: 54.0924, lon: 12.0991 },   // 🔹 important one
+  "Rostock, DE":      { lat: 54.0924, lon: 12.0991 },   // important one
+  "Dortmund, DE":     { lat: 51.5136, lon: 7.4653 },    // 🔹 specifically added
   "Brussels, BE":     { lat: 50.8503, lon: 4.3517 },
   "Antwerp, BE":      { lat: 51.2194, lon: 4.4025 },
   "Amsterdam, NL":    { lat: 52.3676, lon: 4.9041 },
@@ -153,7 +154,7 @@ export const CITY_COORDS = {
   "Doha, QA":         { lat: 25.2854, lon: 51.5310 },
   "Riyadh, SA":       { lat: 24.7136, lon: 46.6753 },
   "Jeddah, SA":       { lat: 21.4858, lon: 39.1925 },
-  "Aleppo, SY":       { lat: 36.2021, lon: 37.1343 },   // 🔹 important one
+  "Aleppo, SY":       { lat: 36.2021, lon: 37.1343 },   // important one
 
   // North America
   "New York, US":     { lat: 40.7128, lon: -74.0060 },
