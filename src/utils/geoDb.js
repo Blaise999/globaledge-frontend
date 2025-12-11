@@ -1,5 +1,9 @@
 // src/utils/geoDb.js
 
+// 🔄 Auto-generated bulk cities from world_cities.csv
+// (file is created by scripts/buildGeoDb.mjs)
+import { CITY_COORDS_FROM_CSV } from "./geoDb.cities.generated";
+
 // 🏳️ Country aliases → ISO-ish codes used in CITY_COORDS keys
 export const COUNTRY_ALIASES = {
   // Africa
@@ -63,9 +67,8 @@ export const COUNTRY_ALIASES = {
   "singapore": "SG", "sg": "SG",
 };
 
-// 🌍 City → static coordinates.
-// You can keep beefing this list up over time (hundreds+ entries).
-export const CITY_COORDS = {
+// 🌍 Hand-curated lanes you had before (can override CSV if needed)
+const BASE_CITY_COORDS = {
   // Nigeria
   "Lagos, NG":        { lat: 6.5244, lon: 3.3792 },
   "Ikeja, NG":        { lat: 6.6018, lon: 3.3515 },
@@ -95,7 +98,7 @@ export const CITY_COORDS = {
   "Dar es Salaam, TZ":{ lat: -6.7924, lon: 39.2083 },
   "Johannesburg, ZA": { lat: -26.2041, lon: 28.0473 },
   "Cape Town, ZA":    { lat: -33.9249, lon: 18.4241 },
-  "Gqeberha, ZA":     { lat: -33.9608, lon: 25.6022 }, // Port Elizabeth
+  "Gqeberha, ZA":     { lat: -33.9608, lon: 25.6022 },
   "Cairo, EG":        { lat: 30.0444, lon: 31.2357 },
   "Alexandria, EG":   { lat: 31.2001, lon: 29.9187 },
   "Casablanca, MA":   { lat: 33.5731, lon: -7.5898 },
@@ -119,8 +122,7 @@ export const CITY_COORDS = {
   "Munich, DE":       { lat: 48.1351, lon: 11.5820 },
   "Hamburg, DE":      { lat: 53.5511, lon: 9.9937 },
   "Cologne, DE":      { lat: 50.9375, lon: 6.9603 },
-  "Rostock, DE":      { lat: 54.0924, lon: 12.0991 },   // important one
-  "Dortmund, DE":     { lat: 51.5136, lon: 7.4653 },    // 🔹 specifically added
+  "Rostock, DE":      { lat: 54.0924, lon: 12.0991 },
   "Brussels, BE":     { lat: 50.8503, lon: 4.3517 },
   "Antwerp, BE":      { lat: 51.2194, lon: 4.4025 },
   "Amsterdam, NL":    { lat: 52.3676, lon: 4.9041 },
@@ -154,7 +156,7 @@ export const CITY_COORDS = {
   "Doha, QA":         { lat: 25.2854, lon: 51.5310 },
   "Riyadh, SA":       { lat: 24.7136, lon: 46.6753 },
   "Jeddah, SA":       { lat: 21.4858, lon: 39.1925 },
-  "Aleppo, SY":       { lat: 36.2021, lon: 37.1343 },   // important one
+  "Aleppo, SY":       { lat: 36.2021, lon: 37.1343 },
 
   // North America
   "New York, US":     { lat: 40.7128, lon: -74.0060 },
@@ -182,11 +184,16 @@ export const CITY_COORDS = {
   "Tokyo, JP":        { lat: 35.6762, lon: 139.6503 },
 };
 
+// 🌎 Final combined coordinates: generated CSV + your curated overrides
+export const CITY_COORDS = {
+  ...CITY_COORDS_FROM_CSV,
+  ...BASE_CITY_COORDS, // these win if there are duplicates
+};
+
 // ───────────────────────── Helpers ─────────────────────────
 
 export function normCountryToCode(country = "") {
   const k = country.trim().toLowerCase();
-  // If we have an alias, use it; else just uppercase the raw string
   return COUNTRY_ALIASES[k] || country.trim().toUpperCase();
 }
 
@@ -199,7 +206,6 @@ export function lookupCoords(city = "", country = "") {
   const keyA = `${city.trim()}, ${cc}`;
   if (CITY_COORDS[keyA]) return CITY_COORDS[keyA];
 
-  // Fallback: any entry whose key starts with "City,"
   const lower = city.trim().toLowerCase();
   for (const k of Object.keys(CITY_COORDS)) {
     if (k.toLowerCase().startsWith(`${lower},`)) return CITY_COORDS[k];
