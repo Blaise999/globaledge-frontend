@@ -492,7 +492,7 @@ export default function ExpressPage() {
                         type="tel"
                         value={parcel.shipperPhone}
                         onChange={(e) => setParcel((s) => ({ ...s, shipperPhone: e.target.value }))}
-                        placeholder="+234 801 234 5678"
+                        placeholder="+44 801 234 5678"
                         className="sm:col-span-2"
                       />
 
@@ -568,7 +568,7 @@ export default function ExpressPage() {
                         type="tel"
                         value={freight.shipperPhone}
                         onChange={(e) => setFreight((s) => ({ ...s, shipperPhone: e.target.value }))}
-                        placeholder="+234 801 234 5678"
+                        placeholder="+44 801 234 5678"
                         className="sm:col-span-2"
                       />
 
