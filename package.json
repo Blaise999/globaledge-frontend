@@ -8,11 +8,12 @@
     "build": "vite build",
     "lint": "eslint .",
     "preview": "vite preview --host 127.0.0.1 --port 4175 --strictPort",
-       "build:geo": "node scripts/buildGeoDb.mjs",
-         "build:world-cities": "node scripts/buildWorldCitiesCsv.mjs"
+    "build:geo": "node scripts/buildGeoDb.mjs",
+    "build:world-cities": "node scripts/buildWorldCitiesCsv.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.86.0",
+    "@vercel/blob": "^2.0.1",
     "leaflet": "^1.9.4",
     "lucide-react": "^0.555.0",
     "react": "^19.1.1",

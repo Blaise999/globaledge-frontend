@@ -1,5 +1,5 @@
 // src/pages/track/TrackPage.jsx
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Logo from "../../assets/globaledge.png";
 import { useAuth } from "../../auth/AuthContext";
@@ -64,6 +64,9 @@ export default function TrackPage() {
   const [inputId, setInputId] = useState("");
   const [data, setData] = useState(null);
   const [err, setErr] = useState("");
+
+  // ✅ NEW: photo lightbox
+  const [lightbox, setLightbox] = useState(null);
 
   // Deep link: /track?ref=GE123...
   useEffect(() => {
@@ -145,6 +148,9 @@ export default function TrackPage() {
     return user ? p : maskPhone(p);
   }, [data, user]);
 
+  // ✅ NEW: normalize photo list for display
+  const photos = useMemo(() => normalizePhotos(data?.goodsPhotos), [data]);
+
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -177,7 +183,7 @@ export default function TrackPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-10 sm:py-14">
           <h1 className="text-3xl sm:text-4xl font-black">Track a shipment</h1>
           <p className="mt-2 text-white/90 max-w-prose">
-            Paste your GlobalEdge tracking ID to see live status, ETA, and checkpoints.
+            Paste your GlobalEdge tracking ID to see live status, ETA, checkpoints — and shipment photos.
           </p>
           <form
             onSubmit={onSubmit}
@@ -399,6 +405,12 @@ export default function TrackPage() {
                 </div>
               </div>
 
+              {/* ✅ NEW: Shipment Photos card */}
+              <ShipmentPhotosCard
+                photos={photos}
+                onOpen={(p) => setLightbox(p)}
+              />
+
               <div className="rounded-2xl border bg-white p-5">
                 <h3 className="font-semibold">Shipment summary</h3>
                 <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
@@ -450,9 +462,7 @@ export default function TrackPage() {
                       </dd>
                     </div>
                   )}
-                  {(data.recipient?.name ||
-                    data.recipient?.phone ||
-                    data.recipient?.address) && (
+                  {(data.recipient?.name || data.recipient?.phone || data.recipient?.address) && (
                     <>
                       <div className="col-span-2">
                         <dt className="text-gray-500">Recipient</dt>
@@ -472,6 +482,11 @@ export default function TrackPage() {
                 </dl>
               </div>
             </div>
+
+            {/* ✅ NEW: Lightbox */}
+            {lightbox && (
+              <PhotoLightbox photo={lightbox} onClose={() => setLightbox(null)} />
+            )}
           </div>
         )}
       </main>
@@ -562,6 +577,16 @@ function mapShipmentToTrackView(s) {
     address: s.recipient?.address || s.recipientAddress || "",
   };
 
+  /* ✅ NEW: goods photos — support multiple server shapes */
+  const goodsPhotos =
+    s.goodsPhotos ||
+    s.photos ||
+    s.parcel?.goodsPhotos ||
+    s.freight?.goodsPhotos ||
+    s.parcel?.photos ||
+    s.freight?.photos ||
+    [];
+
   return {
     id: s.trackingNumber,
     status: s.status || "Created",
@@ -579,6 +604,9 @@ function mapShipmentToTrackView(s) {
     /* ---------- expose contacts ---------- */
     shipper,
     recipient,
+
+    /* ✅ NEW: expose photos to UI */
+    goodsPhotos,
 
     summary: {
       from: s.from || "",
@@ -700,6 +728,7 @@ function LoadingSkeleton() {
 function Shimmer({ className = "" }) {
   return <div className={`animate-pulse rounded bg-gray-100 ${className}`} />;
 }
+
 function StatusPill({ status }) {
   const map = {
     Created: "bg-gray-100 text-gray-700 ring-gray-200",
@@ -864,11 +893,10 @@ function RealMap({ origin, destination, current, routeGeo = [], status }) {
   const destIcon = makeIcon("#000000", 14); // black
 
   // ---------- NEW: English-first tiles (Thunderforest) with CARTO fallback + retina
-  const TF_STYLE = "atlas"; // alternatives: 'outdoors','transport','landscape','neighbourhood','mobile-atlas'
+  const TF_STYLE = "atlas";
   const retina =
     typeof window !== "undefined" && window.devicePixelRatio > 1 ? "@2x" : "";
   const tfUrl = `https://{s}.tile.thunderforest.com/${TF_STYLE}/{z}/{x}/{y}${retina}.png?apikey=${TF_KEY}`;
-
   const cartoUrl = `https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}${retina}.png`;
 
   const useThunderforest = Boolean(TF_KEY);
@@ -914,7 +942,7 @@ function RealMap({ origin, destination, current, routeGeo = [], status }) {
           updateWhenZooming
           updateWhenIdle={false}
           keepBuffer={4}
-          detectRetina={false} // we already toggle @2x via URL
+          detectRetina={false}
         />
 
         {line.length >= 2 && <Polyline positions={line} />}
@@ -964,18 +992,133 @@ function Toggle({ label }) {
       <button
         type="button"
         onClick={() => setOn((s) => !s)}
-        className={`w-10 h-6 rounded-full p-0.5 transition ${
-          on ? "bg-red-600" : "bg-gray-300"
-        }`}
+        className={`w-10 h-6 rounded-full p-0.5 transition ${on ? "bg-red-600" : "bg-gray-300"}`}
       >
         <span
-          className={`block h-5 w-5 bg-white rounded-full transform transition ${
-            on ? "translate-x-4" : ""
-          }`}
+          className={`block h-5 w-5 bg-white rounded-full transform transition ${on ? "translate-x-4" : ""}`}
         />
       </button>
       {label}
     </label>
+  );
+}
+
+/* ========================= NEW: Shipment Photos UI ========================= */
+
+function normalizePhotos(input) {
+  const arr = Array.isArray(input) ? input : [];
+  return arr
+    .map((p) => {
+      if (!p) return null;
+      if (typeof p === "string") return { url: p, name: "Photo" };
+      if (typeof p === "object" && p.url) {
+        return { url: p.url, name: p.name || p.pathname || "Photo", size: p.size, contentType: p.contentType };
+      }
+      return null;
+    })
+    .filter(Boolean);
+}
+
+function ShipmentPhotosCard({ photos = [], onOpen }) {
+  return (
+    <div className="rounded-2xl border bg-white p-5">
+      <div className="flex items-center justify-between gap-3">
+        <h3 className="font-semibold">Shipment photos</h3>
+        <span className="text-xs px-2 py-1 rounded-full bg-gray-100 text-gray-700 ring-1 ring-inset ring-gray-200">
+          {photos.length} file{photos.length === 1 ? "" : "s"}
+        </span>
+      </div>
+
+      {photos.length ? (
+        <>
+          <p className="mt-2 text-xs text-gray-500">
+            Tap a photo to view full size.
+          </p>
+          <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
+            {photos.map((p) => (
+              <button
+                key={p.url}
+                type="button"
+                onClick={() => onOpen?.(p)}
+                className="group relative rounded-xl overflow-hidden border bg-gray-50 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+                title={p.name || "Photo"}
+              >
+                <img
+                  src={p.url}
+                  alt={p.name || "Shipment photo"}
+                  className="w-full aspect-square object-cover transition-transform group-hover:scale-[1.03]"
+                  loading="lazy"
+                />
+                <div className="absolute inset-x-0 bottom-0 p-2 bg-gradient-to-t from-black/60 to-transparent">
+                  <div className="text-[10px] text-white/90 truncate">
+                    {p.name || "Photo"}
+                  </div>
+                </div>
+              </button>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div className="mt-3 rounded-xl border bg-gray-50 p-4 text-sm text-gray-600">
+          No photos attached to this shipment yet.
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PhotoLightbox({ photo, onClose }) {
+  useEffect(() => {
+    const onKey = (e) => {
+      if (e.key === "Escape") onClose?.();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-[999] bg-black/70 backdrop-blur-sm grid place-items-center p-4"
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+    >
+      <div
+        className="w-full max-w-3xl rounded-2xl overflow-hidden bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-3 border-b flex items-center justify-between gap-3">
+          <div className="text-sm font-semibold truncate">{photo?.name || "Shipment photo"}</div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg text-sm font-semibold bg-gray-100 hover:bg-gray-200"
+          >
+            Close
+          </button>
+        </div>
+        <div className="bg-black grid place-items-center">
+          <img
+            src={photo?.url}
+            alt={photo?.name || "Shipment photo"}
+            className="max-h-[75vh] w-auto object-contain"
+          />
+        </div>
+        {photo?.url && (
+          <div className="p-3 border-t text-xs text-gray-500 flex items-center justify-between gap-2">
+            <span className="truncate">{photo.url}</span>
+            <a
+              className="px-3 py-1.5 rounded-lg bg-red-600 text-white font-semibold hover:bg-red-700"
+              href={photo.url}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Open
+            </a>
+          </div>
+        )}
+      </div>
+    </div>
   );
 }
 
