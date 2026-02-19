@@ -688,7 +688,7 @@ return {
                           label="From (City, Country)"
                           value={freight.from}
                           onChange={(e) => setFreight((s) => ({ ...s, from: e.target.value }))}
-                          placeholder="Lagos, Nigeria"
+                          placeholder="Lisbon, Portugal"
                         />
                         <LabeledInput
                           label="To (City, Country)"
