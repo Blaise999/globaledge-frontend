@@ -62,11 +62,11 @@ export default function BillingPage() {
 
   // 👇 pull contact fields (either top-level or inside draft.contact)
   const c = draft?.contact || {};
-  const shipperName  = draft?.shipperName  ?? c.shipperName  ?? c.name  ?? "";
+  const shipperName = draft?.shipperName ?? c.shipperName ?? c.name ?? "";
   const shipperEmail = draft?.shipperEmail ?? c.shipperEmail ?? c.email ?? "";
   const shipperPhone = draft?.shipperPhone ?? c.shipperPhone ?? c.phone ?? "";
 
-  const recipientName  = draft?.recipientName  ?? c.recipientName  ?? "";
+  const recipientName = draft?.recipientName ?? c.recipientName ?? "";
   const recipientPhone = draft?.recipientPhone ?? c.recipientPhone ?? "";
 
   const [method, setMethod] = useState("card");
@@ -82,10 +82,16 @@ export default function BillingPage() {
     const insurance = insure ? Math.max(1.5, base * 0.01) : 0;
     const tax = 0;
     const subtotal = round2(base + fuel + security + insurance + tax);
-    return { fuel: round2(fuel), security: round2(security), insurance: round2(insurance), tax: round2(tax), subtotal };
+    return {
+      fuel: round2(fuel),
+      security: round2(security),
+      insurance: round2(insurance),
+      tax: round2(tax),
+      subtotal,
+    };
   }, [q.baseUSD, insure]);
 
-  const codFee = method === "cod" ? round2(baseTotals.subtotal * 0.20) : 0;
+  const codFee = method === "cod" ? round2(baseTotals.subtotal * 0.2) : 0;
   const grandTotal = round2(baseTotals.subtotal + codFee);
 
   async function onConfirm(e) {
@@ -97,7 +103,15 @@ export default function BillingPage() {
     setErr("");
     setPaying(true);
 
-    // payload expected by backend + contacts
+    // ✅ normalize goods photos so backend always gets clean arrays
+    const goodsPhotosMeta = Array.isArray(draft.goodsPhotos) ? draft.goodsPhotos : [];
+    const goodsPhotos = goodsPhotosMeta
+      .map((p) => (typeof p === "string" ? p : p?.url))
+      .filter(Boolean);
+
+    const shipmentKey = draft.shipmentKey || "";
+
+    // payload expected by backend + contacts (+ photos)
     const payload =
       draft.serviceType === "freight"
         ? {
@@ -108,16 +122,28 @@ export default function BillingPage() {
             recipientEmail: draft.recipientEmail || "",
             recipientAddress: draft.recipientAddress || "",
             freight: draft.freight,
+
             currency: draft.currency,
             price: draft.price,
             eta: draft.eta,
             billable: draft.billable,
             paymentMethod: method,
+
+            // ✅ IMPORTANT: persist these
+            shipmentKey,
+            goodsPhotos, // safest for DB (string[])
+            goodsPhotosMeta, // optional (keeps name/size if you stored it)
+
             contact: {
-              shipperName, shipperEmail, shipperPhone,
-              recipientName, recipientPhone,
+              shipperName,
+              shipperEmail,
+              shipperPhone,
+              recipientName,
+              recipientPhone,
               // convenient fallbacks for your server linker:
-              name: shipperName, email: shipperEmail, phone: shipperPhone,
+              name: shipperName,
+              email: shipperEmail,
+              phone: shipperPhone,
             },
           }
         : {
@@ -128,15 +154,27 @@ export default function BillingPage() {
             recipientEmail: draft.recipientEmail || "",
             recipientAddress: draft.recipientAddress || "",
             parcel: draft.parcel,
+
             currency: draft.currency,
             price: draft.price,
             eta: draft.eta,
             billable: draft.billable,
             paymentMethod: method,
+
+            // ✅ IMPORTANT: persist these
+            shipmentKey,
+            goodsPhotos,
+            goodsPhotosMeta,
+
             contact: {
-              shipperName, shipperEmail, shipperPhone,
-              recipientName, recipientPhone,
-              name: shipperName, email: shipperEmail, phone: shipperPhone,
+              shipperName,
+              shipperEmail,
+              shipperPhone,
+              recipientName,
+              recipientPhone,
+              name: shipperName,
+              email: shipperEmail,
+              phone: shipperPhone,
             },
           };
 
@@ -144,15 +182,21 @@ export default function BillingPage() {
       const TIMEOUT_MS = 12000;
       const created = await Promise.race([
         shipments.create(payload),
-        new Promise((_, rej) => setTimeout(() => rej(new Error("Request timed out. Please try again.")), TIMEOUT_MS)),
+        new Promise((_, rej) =>
+          setTimeout(() => rej(new Error("Request timed out. Please try again.")), TIMEOUT_MS)
+        ),
       ]);
 
-      // build a receipt that also carries contacts (so the Receipt page can render them even offline)
+      // build receipt that carries contacts + photos (offline friendly)
       const receipt = {
         id: created?._id || created?.id || `GE-${Date.now()}`,
         quote: {
-          mode: q.mode, service: q.service, from: q.from, to: q.to,
-          weightKg: q.weightKg, dimsCm: q.dimsCm,
+          mode: q.mode,
+          service: q.service,
+          from: q.from,
+          to: q.to,
+          weightKg: q.weightKg,
+          dimsCm: q.dimsCm,
           etaText: created?.eta || q.etaText || draft.eta || "—",
           baseUSD: q.baseUSD,
           currency: q.currency || draft.currency || "EUR",
@@ -168,11 +212,19 @@ export default function BillingPage() {
         shipmentId: created?._id || created?.id,
         trackingId: created?.trackingNumber || created?.tracking || created?.trackingId || "",
         contacts: {
-          shipperName, shipperEmail, shipperPhone,
-          recipientName, recipientPhone,
+          shipperName,
+          shipperEmail,
+          shipperPhone,
+          recipientName,
+          recipientPhone,
           recipientEmail: q.recipientEmail,
           recipientAddress: q.recipientAddress,
         },
+
+        // ✅ keep for receipt UI + debugging
+        shipmentKey,
+        goodsPhotos,
+        goodsPhotosMeta,
       };
 
       clearDraft();
@@ -196,8 +248,12 @@ export default function BillingPage() {
             <span className="font-bold text-lg text-gray-800">GlobalEdge</span>
           </Link>
           <div className="flex items-center gap-3">
-            <Link to="/services/express" className="text-sm font-medium text-gray-600 hover:text-gray-900">Back to quote</Link>
-            <Link to="/track" className="text-sm font-medium text-gray-600 hover:text-gray-900">Track</Link>
+            <Link to="/services/express" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+              Back to quote
+            </Link>
+            <Link to="/track" className="text-sm font-medium text-gray-600 hover:text-gray-900">
+              Track
+            </Link>
           </div>
         </div>
       </header>
@@ -216,13 +272,16 @@ export default function BillingPage() {
                 <Info label="From" value={q.from} />
                 <Info label="To" value={q.to} />
                 <Info label="Weight" value={`${q.weightKg ?? 0} kg`} />
-                <Info label="Dimensions" value={`${q.dimsCm?.l ?? "-"}×${q.dimsCm?.w ?? "-"}×${q.dimsCm?.h ?? "-"} cm`} />
+                <Info
+                  label="Dimensions"
+                  value={`${q.dimsCm?.l ?? "-"}×${q.dimsCm?.w ?? "-"}×${q.dimsCm?.h ?? "-"} cm`}
+                />
                 <Info label="Recipient email" value={q.recipientEmail || "—"} />
                 <Info label="Recipient address" value={q.recipientAddress || "—"} />
                 <Info label="ETA" value={q.etaText || "—"} />
               </dl>
 
-              {/* NEW: Contacts block */}
+              {/* Contacts block */}
               <div className="mt-6 grid md:grid-cols-2 gap-4">
                 <ContactCard
                   title="Shipper"
@@ -234,7 +293,7 @@ export default function BillingPage() {
                 />
                 <ContactCard
                   title="Recipient"
-                  name={recipientName || "(name not provided)"} 
+                  name={recipientName || "(name not provided)"}
                   lines={[
                     recipientPhone ? `Phone: ${recipientPhone}` : null,
                     q.recipientEmail ? `Email: ${q.recipientEmail}` : null,
@@ -249,6 +308,7 @@ export default function BillingPage() {
                 <h2 className="text-lg font-semibold text-gray-900">Payment method</h2>
                 {IS_DEV && (
                   <span className="text-[10px] font-semibold px-2 py-1 rounded-full bg-amber-100 text-amber-700">
+                    DEV (card validation bypass)
                   </span>
                 )}
               </div>
@@ -267,7 +327,9 @@ export default function BillingPage() {
                           setCardOk(opt !== "card");
                         }}
                       />
-                      <span className="capitalize">{opt === "cod" ? "Pay on delivery (+20%)" : "Credit / Debit card"}</span>
+                      <span className="capitalize">
+                        {opt === "cod" ? "Pay on delivery (+20%)" : "Credit / Debit card"}
+                      </span>
                     </label>
                   ))}
                 </div>
@@ -277,12 +339,19 @@ export default function BillingPage() {
                 {method === "cod" && (
                   <div className="rounded-xl border bg-amber-50 p-4 text-sm text-amber-900">
                     <div className="font-semibold mb-1">Pay on Delivery (COD)</div>
-                    <p>A <b>20% COD service fee</b> will be applied.</p>
+                    <p>
+                      A <b>20% COD service fee</b> will be applied.
+                    </p>
                   </div>
                 )}
 
                 <label className="mt-1 flex items-center gap-2 text-sm">
-                  <input type="checkbox" className="accent-red-600" checked={insure} onChange={(e)=>setInsure(e.target.checked)} />
+                  <input
+                    type="checkbox"
+                    className="accent-red-600"
+                    checked={insure}
+                    onChange={(e) => setInsure(e.target.checked)}
+                  />
                   Add shipment insurance (1% of base, min $1.50)
                 </label>
 
@@ -344,21 +413,27 @@ const Info = ({ label, value }) => (
     <dd className="font-medium text-gray-900">{String(value ?? "—")}</dd>
   </div>
 );
+
 const Cost = ({ label, value, muted, highlight }) => (
   <li className="flex justify-between items-center">
-    <span className={(muted ? "text-gray-500" : "text-gray-700") + (highlight ? " font-semibold" : "")}>{label}</span>
+    <span className={(muted ? "text-gray-500" : "text-gray-700") + (highlight ? " font-semibold" : "")}>
+      {label}
+    </span>
     <span className={(muted ? "text-gray-500" : "font-medium") + (highlight ? " text-amber-700" : "")}>
       ${fmt(value)}
     </span>
   </li>
 );
+
 function ContactCard({ title, name, lines = [] }) {
   return (
     <div className="rounded-xl border p-4">
       <div className="text-xs text-gray-500">{title}</div>
       <div className="font-semibold">{name || "-"}</div>
       <ul className="mt-1 text-xs text-gray-600 space-y-0.5">
-        {lines.filter(Boolean).map((t, i) => <li key={i}>{t}</li>)}
+        {lines.filter(Boolean).map((t, i) => (
+          <li key={i}>{t}</li>
+        ))}
       </ul>
     </div>
   );
@@ -397,11 +472,7 @@ function CardFields({ onValidityChange }) {
             inputMode="numeric"
             autoComplete="cc-number"
             placeholder="1234 5678 9012 3456"
-            className={
-              INPUT +
-              (number && !isNumberValid ? " ring-1 ring-red-500" : "") +
-              " pr-28"
-            }
+            className={INPUT + (number && !isNumberValid ? " ring-1 ring-red-500" : "") + " pr-28"}
             value={number}
             onChange={(e) => setNumber(formatCardNumber(e.target.value))}
           />
@@ -410,13 +481,11 @@ function CardFields({ onValidityChange }) {
           </div>
           <div className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M17 9h-1V7a4 4 0 10-8 0v2H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2v-8a2 2 0 00-2-2zm-8-2a3 3 0 116 0v2H9V7zm9 12H6v-8h12v8z"/>
+              <path d="M17 9h-1V7a4 4 0 10-8 0v2H7a2 2 0 00-2 2v8a2 2 0 002 2h10a2 2 0 002-2v-8a2 2 0 00-2-2zm-8-2a3 3 0 116 0v2H9V7zm9 12H6v-8h12v8z" />
             </svg>
           </div>
         </div>
-        {!isNumberValid && number.length > 0 && (
-          <p className="mt-1 text-xs text-red-600">Enter a valid card number.</p>
-        )}
+        {!isNumberValid && number.length > 0 && <p className="mt-1 text-xs text-red-600">Enter a valid card number.</p>}
       </div>
 
       {/* expiry + cvc row */}
@@ -431,9 +500,7 @@ function CardFields({ onValidityChange }) {
             value={expiry}
             onChange={(e) => setExpiry(formatExpiry(e.target.value))}
           />
-          {!isExpiryValid && expiry.length > 0 && (
-            <p className="mt-1 text-xs text-red-600">Use a valid future date.</p>
-          )}
+          {!isExpiryValid && expiry.length > 0 && <p className="mt-1 text-xs text-red-600">Use a valid future date.</p>}
         </div>
         <div>
           <label className={LABEL}>CVV</label>
@@ -445,9 +512,7 @@ function CardFields({ onValidityChange }) {
             value={cvc}
             onChange={(e) => setCvc(formatCvc(e.target.value, brand))}
           />
-          {!isCvcValid && cvc.length > 0 && (
-            <p className="mt-1 text-xs text-red-600">Invalid CVC.</p>
-          )}
+          {!isCvcValid && cvc.length > 0 && <p className="mt-1 text-xs text-red-600">Invalid CVC.</p>}
         </div>
       </div>
 
@@ -455,23 +520,11 @@ function CardFields({ onValidityChange }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={LABEL}>First name</label>
-          <input
-            autoComplete="cc-given-name"
-            placeholder="John"
-            className={INPUT}
-            value={first}
-            onChange={(e) => setFirst(e.target.value)}
-          />
+          <input autoComplete="cc-given-name" placeholder="John" className={INPUT} value={first} onChange={(e) => setFirst(e.target.value)} />
         </div>
         <div>
           <label className={LABEL}>Last name</label>
-          <input
-            autoComplete="cc-family-name"
-            placeholder="Doe"
-            className={INPUT}
-            value={last}
-            onChange={(e) => setLast(e.target.value)}
-          />
+          <input autoComplete="cc-family-name" placeholder="Doe" className={INPUT} value={last} onChange={(e) => setLast(e.target.value)} />
         </div>
       </div>
 
@@ -479,15 +532,17 @@ function CardFields({ onValidityChange }) {
       <div className="grid grid-cols-2 gap-3">
         <div>
           <label className={LABEL}>Country/Region</label>
-          <select className={INPUT} value={country} onChange={(e)=>setCountry(e.target.value)}>
-            {["Germany", "Belgium","Ghana","Kenya","South Africa","United States","United Kingdom","Canada"].map(c=>(
-              <option key={c} value={c}>{c}</option>
+          <select className={INPUT} value={country} onChange={(e) => setCountry(e.target.value)}>
+            {["Germany", "Belgium", "Ghana", "Kenya", "South Africa", "United States", "United Kingdom", "Canada"].map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
             ))}
           </select>
         </div>
         <div>
           <label className={LABEL}>VAT ID (optional)</label>
-          <input className={INPUT} placeholder="e.g. US-0123456789" value={vat} onChange={(e)=>setVat(e.target.value)} />
+          <input className={INPUT} placeholder="e.g. US-0123456789" value={vat} onChange={(e) => setVat(e.target.value)} />
         </div>
       </div>
 
@@ -501,13 +556,22 @@ function AcceptedRow() {
   return (
     <div className="mt-2 flex items-center gap-2 text-xs text-gray-600">
       <span className="mr-1">Accepted:</span>
-      <BrandBadgeColored brand="visa"><VisaColor /></BrandBadgeColored>
-      <BrandBadgeColored brand="mastercard"><MastercardColor /></BrandBadgeColored>
-      <BrandBadgeColored brand="verve"><VerveColor /></BrandBadgeColored>
-      <BrandBadgeColored brand="amex"><AmexColor /></BrandBadgeColored>
+      <BrandBadgeColored brand="visa">
+        <VisaColor />
+      </BrandBadgeColored>
+      <BrandBadgeColored brand="mastercard">
+        <MastercardColor />
+      </BrandBadgeColored>
+      <BrandBadgeColored brand="verve">
+        <VerveColor />
+      </BrandBadgeColored>
+      <BrandBadgeColored brand="amex">
+        <AmexColor />
+      </BrandBadgeColored>
     </div>
   );
 }
+
 function BrandBadgeColored({ brand, children }) {
   const key = (brand || "card").toLowerCase();
   const label = key.toUpperCase();
@@ -522,17 +586,9 @@ function BrandBadgeColored({ brand, children }) {
   }
 
   return (
-    <span
-      className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 shadow-sm"
-      aria-label={label}
-      title={label}
-    >
-      <span className="inline-block h-4 w-8">
-        {children ? children : <AutoIcon />}
-      </span>
-      <span className="hidden sm:inline text-[10px] font-semibold uppercase text-gray-700">
-        {label}
-      </span>
+    <span className="inline-flex items-center gap-1 rounded-full border border-gray-200 bg-white px-2 py-1 shadow-sm" aria-label={label} title={label}>
+      <span className="inline-block h-4 w-8">{children ? children : <AutoIcon />}</span>
+      <span className="hidden sm:inline text-[10px] font-semibold uppercase text-gray-700">{label}</span>
     </span>
   );
 }
@@ -552,7 +608,9 @@ function VisaColor() {
   return (
     <svg viewBox="0 0 48 16" className="h-4 w-8" aria-hidden="true">
       <rect x="0" y="0" width="48" height="16" rx="3" fill="#1A1F71" />
-      <text x="9" y="11" fontSize="9" fontWeight="700" fill="#FFFFFF" letterSpacing="1">VISA</text>
+      <text x="9" y="11" fontSize="9" fontWeight="700" fill="#FFFFFF" letterSpacing="1">
+        VISA
+      </text>
     </svg>
   );
 }
@@ -569,7 +627,9 @@ function AmexColor() {
   return (
     <svg viewBox="0 0 56 16" className="h-4 w-12" aria-hidden="true">
       <rect x="0" y="0" width="56" height="16" rx="3" fill="#2E77BC" />
-      <text x="8" y="11" fontSize="8.5" fontWeight="800" fill="#FFFFFF" letterSpacing="1">AMEX</text>
+      <text x="8" y="11" fontSize="8.5" fontWeight="800" fill="#FFFFFF" letterSpacing="1">
+        AMEX
+      </text>
     </svg>
   );
 }
@@ -584,23 +644,26 @@ function VerveColor() {
 }
 
 /* ---------- card formatters & validation ---------- */
-function onlyDigits(v) { return (v || "").replace(/\D+/g, ""); }
+function onlyDigits(v) {
+  return (v || "").replace(/\D+/g, "");
+}
 function formatCardNumber(v) {
   const d = onlyDigits(v).slice(0, 19);
   const groups = [];
-  for (let i=0; i<d.length; i+=4) groups.push(d.slice(i, i+4));
+  for (let i = 0; i < d.length; i += 4) groups.push(d.slice(i, i + 4));
   return groups.join(" ");
 }
 function formatExpiry(v) {
   const d = onlyDigits(v).slice(0, 4);
   if (d.length === 0) return "";
   if (d.length <= 2) return d;
-  return d.slice(0,2) + "/" + d.slice(2);
+  return d.slice(0, 2) + "/" + d.slice(2);
 }
 function expiryValid(v) {
   const m = v.match(/^(\d{2})\/(\d{2})$/);
   if (!m) return false;
-  let mm = parseInt(m[1],10), yy = parseInt(m[2],10);
+  let mm = parseInt(m[1], 10),
+    yy = parseInt(m[2], 10);
   if (mm < 1 || mm > 12) return false;
   const now = new Date();
   const year = now.getFullYear() % 100;
@@ -620,11 +683,16 @@ function cvcValid(v, brand) {
 function luhnValid(v) {
   const digits = onlyDigits(v);
   if (digits.length < 12) return false;
-  let sum = 0, alt = false;
+  let sum = 0,
+    alt = false;
   for (let i = digits.length - 1; i >= 0; i--) {
     let n = parseInt(digits.charAt(i), 10);
-    if (alt) { n *= 2; if (n > 9) n -= 9; }
-    sum += n; alt = !alt;
+    if (alt) {
+      n *= 2;
+      if (n > 9) n -= 9;
+    }
+    sum += n;
+    alt = !alt;
   }
   return sum % 10 === 0;
 }
@@ -646,5 +714,9 @@ function validLengthForBrand(v, brand) {
 }
 
 /* ---------- misc helpers ---------- */
-function fmt(n){ return Number(n || 0).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}); }
-function round2(n){ return Math.round((Number(n||0))*100)/100; }
+function fmt(n) {
+  return Number(n || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function round2(n) {
+  return Math.round(Number(n || 0) * 100) / 100;
+}

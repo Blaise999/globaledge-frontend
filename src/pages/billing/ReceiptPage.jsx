@@ -3,27 +3,74 @@ import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { useEffect, useMemo, useRef, useState } from "react";
 import Logo from "../../assets/globaledge.png";
 
-import { bookFromDraft, shipments, getUserToken } from "../../utils/api";
+import { bookFromDraft, getUserToken } from "../../utils/api";
 import { loadDraft, clearDraft } from "../../utils/storage"; // make sure you have these
 
-export default function ReceiptPage(){
+function tryParse(json) {
+  try {
+    return JSON.parse(json);
+  } catch {
+    return null;
+  }
+}
+
+// ✅ refresh-safe best-effort restore (doesn't depend on your utils/storage)
+function readReceiptFromStorage(id) {
+  if (typeof window === "undefined") return null;
+  const keysToTry = [
+    `ge_receipt_${id}`,
+    `receipt_${id}`,
+    "ge_receipt",
+    "last_receipt",
+    "receipt",
+  ];
+
+  for (const store of [window.sessionStorage, window.localStorage]) {
+    for (const k of keysToTry) {
+      const raw = store.getItem(k);
+      if (!raw) continue;
+      const parsed = tryParse(raw);
+      if (!parsed) continue;
+
+      // if it's a list, find by id
+      if (Array.isArray(parsed)) {
+        const found = parsed.find((r) => String(r?.id) === String(id));
+        if (found) return found;
+      }
+
+      // if it's an object receipt
+      if (parsed && typeof parsed === "object") {
+        if (String(parsed?.id) === String(id)) return parsed;
+        // sometimes people store as {receipt:{...}}
+        if (parsed?.receipt && String(parsed.receipt?.id) === String(id)) return parsed.receipt;
+      }
+    }
+  }
+  return null;
+}
+
+export default function ReceiptPage() {
   const { id } = useParams(); // receipt id (client-side)
   const { state } = useLocation();
   const navigate = useNavigate();
 
-  // Expect: { id, quote, totals, method, ts, [trackingId], [shipmentId], [draft], [contacts] }
-  const receipt = state?.receipt;
+  // ✅ try state first, then storage fallback
+  const receipt = state?.receipt || readReceiptFromStorage(id);
 
-  // If user refreshed and we lost the state, nudge back
+  // If user refreshed and we lost everything, nudge back
   if (!receipt) {
     return (
       <div className="min-h-screen bg-white flex items-center justify-center p-6">
         <div className="max-w-md w-full text-center">
           <h1 className="text-xl font-semibold">Receipt unavailable</h1>
-          <p className="mt-2 text-gray-600">We couldn’t restore the simulated receipt details.</p>
+          <p className="mt-2 text-gray-600">We couldn’t restore the receipt details.</p>
           <div className="mt-4 flex justify-center gap-2">
-            <button className="px-4 py-2 rounded-lg border" onClick={()=>navigate(-1)}>Go back</button>
-            <Link className="px-4 py-2 rounded-lg bg-red-600 text-white" to="/services/express">New quote</Link>
+            <button className="px-4 py-2 rounded-lg border" onClick={() => navigate(-1)}>
+              Go back
+            </button>
+            <Link className="px-4 py-2 rounded-lg bg-red-600 text-white" to="/services/express">
+              New quote
+            </Link>
           </div>
         </div>
       </div>
@@ -39,50 +86,67 @@ export default function ReceiptPage(){
   const [trackErr, setTrackErr] = useState("");
   const bookedRef = useRef(false); // prevent duplicate booking on fast reloads
 
+  // ✅ pull contacts if Billing included them
+  const contacts = receipt.contacts || receipt.contact || {};
+
+  // ✅ pull goods photos (either urls or meta)
+  const goodsPhotosMeta = Array.isArray(receipt.goodsPhotosMeta) ? receipt.goodsPhotosMeta : [];
+  const goodsPhotos = Array.isArray(receipt.goodsPhotos)
+    ? receipt.goodsPhotos
+    : goodsPhotosMeta
+        .map((p) => (typeof p === "string" ? p : p?.url))
+        .filter(Boolean);
+
   // If no trackingId, try to book the shipment from the saved draft (session/local storage)
-  // Works for both guests and logged-in users (api.create handles both).
   useEffect(() => {
     if (trackingId || bookedRef.current) return;
 
-    // Prefer a draft that Billing might pass along; otherwise load from storage
-    const draft =
-      state?.draft ||
-      loadDraft(); // you already used saveDraft in Express/Billing
+    const rawDraft = state?.draft || loadDraft();
 
-    if (!draft) {
+    if (!rawDraft) {
       setLoadingTrack(false);
       setTrackErr("Missing shipment draft. Please re-create your shipment.");
       return;
     }
+
+    // ✅ normalize photos + shipmentKey so bookFromDraft can pass them through
+    const dGoodsMeta = Array.isArray(rawDraft.goodsPhotos) ? rawDraft.goodsPhotos : [];
+    const dGoods = dGoodsMeta.map((p) => (typeof p === "string" ? p : p?.url)).filter(Boolean);
+
+    const draft = {
+      ...rawDraft,
+      shipmentKey: rawDraft.shipmentKey || "",
+      goodsPhotos: dGoodsMeta,
+      goodsPhotosMeta: dGoodsMeta, // optional
+      goodsPhotosUrls: dGoods, // optional helper
+    };
 
     (async () => {
       try {
         setLoadingTrack(true);
         setTrackErr("");
 
-        // Create the shipment (guest or user)
         bookedRef.current = true;
+
         const created = await bookFromDraft(draft, getUserToken());
 
-        // Expect backend response like:
-        // { _id, trackingNumber, ... }
-        const tid = created?.trackingNumber || created?.tracking || created?.id;
+        const tid = created?.trackingNumber || created?.tracking || created?.trackingId || created?.id;
         if (!tid) throw new Error("No tracking number returned by server.");
 
         setTrackingId(String(tid));
-        setShipmentId(String(created?._id || ""));
+        setShipmentId(String(created?._id || created?.id || ""));
 
         // Clear draft so refresh doesn’t rebook
         clearDraft();
 
-        // Also patch history state so a refresh keeps IDs without rebooking
+        // Patch history state so UI has the IDs
         navigate(".", {
           replace: true,
           state: {
             receipt: {
               ...receipt,
               trackingId: String(tid),
-              shipmentId: String(created?._id || ""),
+              shipmentId: String(created?._id || created?.id || ""),
             },
           },
         });
@@ -101,9 +165,6 @@ export default function ReceiptPage(){
     return `${symbol}${fmt(totals?.total ?? 0)}`;
   }, [totals]);
 
-  // NEW: pull contacts if Billing included them
-  const contacts = receipt.contacts || receipt.contact || {}; // shipperName, shipperEmail, shipperPhone, recipientName, recipientPhone, recipientEmail, recipientAddress
-
   return (
     <div className="min-h-screen bg-white">
       {/* Header */}
@@ -118,8 +179,12 @@ export default function ReceiptPage(){
                 <div className="text-[10px] uppercase tracking-wide text-gray-500">Total paid</div>
                 <div className="text-base font-extrabold">{headerRight}</div>
               </div>
-              <Link to="/track" className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">Track</Link>
-              <Link to="/dashboard" className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">Dashboard</Link>
+              <Link to="/track" className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">
+                Track
+              </Link>
+              <Link to="/dashboard" className="px-3 py-1.5 rounded-lg hover:bg-gray-100 text-sm">
+                Dashboard
+              </Link>
             </div>
           </div>
         </div>
@@ -134,13 +199,7 @@ export default function ReceiptPage(){
               <div className="flex-1 relative">
                 <input
                   readOnly
-                  value={
-                    loadingTrack
-                      ? "Creating shipment…"
-                      : trackErr
-                      ? "—"
-                      : trackingId || "Not available"
-                  }
+                  value={loadingTrack ? "Creating shipment…" : trackErr ? "—" : trackingId || "Not available"}
                   className="w-full rounded-xl border border-gray-300 bg-white px-3.5 py-2.5 text-sm pr-28"
                 />
                 {loadingTrack && (
@@ -204,10 +263,22 @@ export default function ReceiptPage(){
             <section className="rounded-xl border p-4">
               <h3 className="font-semibold">Shipment</h3>
               <dl className="mt-2 text-sm grid grid-cols-2 gap-2">
-                <div><dt className="text-gray-500">From</dt><dd className="font-medium">{quote.from}</dd></div>
-                <div><dt className="text-gray-500">To</dt><dd className="font-medium">{quote.to}</dd></div>
-                <div><dt className="text-gray-500">Service</dt><dd className="font-medium">{quote.service}</dd></div>
-                <div><dt className="text-gray-500">Weight</dt><dd className="font-medium">{quote.weightKg} kg</dd></div>
+                <div>
+                  <dt className="text-gray-500">From</dt>
+                  <dd className="font-medium">{quote.from}</dd>
+                </div>
+                <div>
+                  <dt className="text-gray-500">To</dt>
+                  <dd className="font-medium">{quote.to}</dd>
+                </div>
+                <div>
+                  <dt className="text-gray-500">Service</dt>
+                  <dd className="font-medium">{quote.service}</dd>
+                </div>
+                <div>
+                  <dt className="text-gray-500">Weight</dt>
+                  <dd className="font-medium">{quote.weightKg} kg</dd>
+                </div>
                 <div className="col-span-2">
                   <dt className="text-gray-500">Tracking ID</dt>
                   <dd className="font-medium">{trackingId || (loadingTrack ? "Creating…" : "—")}</dd>
@@ -218,22 +289,37 @@ export default function ReceiptPage(){
             <section className="rounded-xl border p-4">
               <h3 className="font-semibold">Payment</h3>
               <div className="mt-2 text-sm">
-                <div className="flex justify-between"><span>Method</span><span className="font-medium">{prettyMethod(method)}</span></div>
-                {maskedCard && <div className="flex justify-between"><span>Card</span><span className="font-medium">{maskedCard}</span></div>}
-                <div className="flex justify-between"><span>Status</span><span className="font-medium text-emerald-600">Succeeded</span></div>
+                <div className="flex justify-between">
+                  <span>Method</span>
+                  <span className="font-medium">{prettyMethod(method)}</span>
+                </div>
+                {maskedCard && (
+                  <div className="flex justify-between">
+                    <span>Card</span>
+                    <span className="font-medium">{maskedCard}</span>
+                  </div>
+                )}
+                <div className="flex justify-between">
+                  <span>Status</span>
+                  <span className="font-medium text-emerald-600">Succeeded</span>
+                </div>
               </div>
               <div className="mt-3">
-                <button onClick={() => window.print()} className="px-3 py-2 rounded-lg bg-black text-white text-sm">Print / Save PDF</button>
+                <button onClick={() => window.print()} className="px-3 py-2 rounded-lg bg-black text-white text-sm">
+                  Print / Save PDF
+                </button>
               </div>
             </section>
           </div>
 
-          {/* NEW: Contacts (shipper & recipient) */}
+          {/* Contacts */}
           <section className="mt-6 grid md:grid-cols-2 gap-6">
             <div className="rounded-xl border p-4">
               <h3 className="font-semibold">Shipper</h3>
               <ul className="mt-2 text-sm text-gray-700 space-y-1">
-                <li><b>{contacts.shipperName || "(name not provided)"}</b></li>
+                <li>
+                  <b>{contacts.shipperName || "(name not provided)"}</b>
+                </li>
                 {contacts.shipperEmail && <li>Email: {contacts.shipperEmail}</li>}
                 {contacts.shipperPhone && <li>Phone: {contacts.shipperPhone}</li>}
               </ul>
@@ -241,7 +327,9 @@ export default function ReceiptPage(){
             <div className="rounded-xl border p-4">
               <h3 className="font-semibold">Recipient</h3>
               <ul className="mt-2 text-sm text-gray-700 space-y-1">
-                <li><b>{contacts.recipientName || "(name not provided)"}</b></li>
+                <li>
+                  <b>{contacts.recipientName || "(name not provided)"}</b>
+                </li>
                 {contacts.recipientPhone && <li>Phone: {contacts.recipientPhone}</li>}
                 {contacts.recipientEmail && <li>Email: {contacts.recipientEmail}</li>}
                 {contacts.recipientAddress && <li className="text-gray-600">{contacts.recipientAddress}</li>}
@@ -249,15 +337,52 @@ export default function ReceiptPage(){
             </div>
           </section>
 
+          {/* ✅ Goods photos */}
+          {goodsPhotos.length > 0 && (
+            <section className="mt-6 rounded-xl border p-4">
+              <h3 className="font-semibold">Goods photos</h3>
+              <div className="mt-3 grid grid-cols-2 sm:grid-cols-3 gap-3">
+                {goodsPhotos.map((url, idx) => (
+                  <a key={idx} href={url} target="_blank" rel="noreferrer" className="block">
+                    <div className="aspect-[4/3] rounded-lg overflow-hidden border bg-gray-50">
+                      {/* eslint-disable-next-line jsx-a11y/img-redundant-alt */}
+                      <img src={url} alt={`Goods photo ${idx + 1}`} className="h-full w-full object-cover" />
+                    </div>
+                  </a>
+                ))}
+              </div>
+              {goodsPhotosMeta.length > 0 && (
+                <div className="mt-3 text-xs text-gray-500">
+                  {goodsPhotosMeta.length} file{goodsPhotosMeta.length === 1 ? "" : "s"} attached.
+                </div>
+              )}
+            </section>
+          )}
+
           {/* Charges */}
           <section className="mt-6 rounded-xl border p-4">
             <h3 className="font-semibold">Charges</h3>
             <ul className="mt-2 text-sm space-y-1">
-              <li className="flex justify-between"><span>Base</span><span>{money(quote.currency, quote.baseUSD)}</span></li>
-              <li className="flex justify-between"><span>Fuel</span><span>{money(totals.currency, totals.fuel)}</span></li>
-              <li className="flex justify-between"><span>Security & handling</span><span>{money(totals.currency, totals.security)}</span></li>
-              <li className="flex justify-between"><span>Insurance</span><span>{money(totals.currency, totals.insurance)}</span></li>
-              <li className="flex justify-between text-gray-500"><span>Taxes / duties</span><span>{money(totals.currency, totals.tax)}</span></li>
+              <li className="flex justify-between">
+                <span>Base</span>
+                <span>{money(quote.currency, quote.baseUSD)}</span>
+              </li>
+              <li className="flex justify-between">
+                <span>Fuel</span>
+                <span>{money(totals.currency, totals.fuel)}</span>
+              </li>
+              <li className="flex justify-between">
+                <span>Security & handling</span>
+                <span>{money(totals.currency, totals.security)}</span>
+              </li>
+              <li className="flex justify-between">
+                <span>Insurance</span>
+                <span>{money(totals.currency, totals.insurance)}</span>
+              </li>
+              <li className="flex justify-between text-gray-500">
+                <span>Taxes / duties</span>
+                <span>{money(totals.currency, totals.tax)}</span>
+              </li>
               <li className="flex justify-between pt-2 border-t">
                 <span className="font-medium">Total</span>
                 <span className="font-extrabold">{money(totals.currency, totals.total)}</span>
@@ -274,7 +399,9 @@ export default function ReceiptPage(){
             >
               Track shipment
             </Link>
-            <Link to="/services/express" className="px-4 py-2 rounded-xl border">Create another</Link>
+            <Link to="/services/express" className="px-4 py-2 rounded-xl border">
+              Create another
+            </Link>
           </div>
         </div>
       </main>
@@ -283,18 +410,27 @@ export default function ReceiptPage(){
 }
 
 /* ---------------- helpers ---------------- */
-function fmt(n){ return Number(n).toLocaleString(undefined,{minimumFractionDigits:2, maximumFractionDigits:2}); }
-function money(curr, n){
-  const sym = curr === "BEL" ? "€" : curr === "EUR" ? "€" : (curr ? `${curr} ` : "$");
+function fmt(n) {
+  return Number(n).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function money(curr, n) {
+  const sym = curr === "BEL" ? "€" : curr === "EUR" ? "€" : curr ? `${curr} ` : "$";
   return `${sym}${fmt(n)}`;
 }
-function prettyMethod(m){
-  switch(m){
-    case "card": return "Card";
-    case "paypal": return "PayPal";
-    case "bank": return "Bank transfer";
-    case "cod": return "Pay on delivery";
-    default: return m || "—";
+function prettyMethod(m) {
+  switch (m) {
+    case "card":
+      return "Card";
+    case "paypal":
+      return "PayPal";
+    case "bank":
+      return "Bank transfer";
+    case "cod":
+      return "Pay on delivery";
+    default:
+      return m || "—";
   }
 }
-function shorten(id){ return String(id).slice(0,6) + "…" + String(id).slice(-4); }
+function shorten(id) {
+  return String(id).slice(0, 6) + "…" + String(id).slice(-4);
+}
